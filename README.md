@@ -1,124 +1,305 @@
 # Identity Service
 
-Identity and Access Management (IAM) microservice for the Travel Management System.
+Identity and Access Management (IAM) microservice for the Travel Management System. Handles user registration, role-based access control (RBAC), password hashing, and asynchronous event publishing via the Transactional Outbox Pattern.
 
 ---
 
-## Configuration Overview
+## Tech Stack
 
-The Identity Service is configured via Spring Boot properties with environment variable overrides and an optional local secrets file. Configuration values are resolved in the following priority order:
-
-1. **Command-line arguments** (e.g., `--server.port=8082`)
-2. **Environment variables** (e.g., `SPRING_DATASOURCE_URL=...`)
-3. **Local development secrets**: `src/main/resources/application-secrets.properties` (git-ignored, optional)
-4. **Default configuration**: `src/main/resources/application.properties`
-
----
-
-## Environment Variables Reference
-
-| Environment Variable | Property Key | Default Value | Description |
-|----------------------|--------------|---------------|-------------|
-| `SERVER_PORT` | `server.port` | `8081` | HTTP port for the Identity Service |
-| `SPRING_DATASOURCE_URL` | `spring.datasource.url` | `jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:identity_db}` | JDBC connection URL for PostgreSQL |
-| `SPRING_DATASOURCE_USERNAME` | `spring.datasource.username` | `postgres` | Database username |
-| `SPRING_DATASOURCE_PASSWORD` | `spring.datasource.password` | `postgres` | Database password |
-| `DB_HOST` | *(URL interpolation)* | `localhost` | Database host (fallback if `SPRING_DATASOURCE_URL` is omitted) |
-| `DB_PORT` | *(URL / Compose port)* | `5433` *(Compose)* / `5432` *(Default)* | Database port |
-| `DB_NAME` | *(URL interpolation)* | `identity_db` | Database catalog name |
-| `JWT_SECRET` | `jwt.secret` | `change-me-in-production` | Secret key used for signing and verifying JWT tokens |
-| `JWT_EXPIRATION` | `jwt.expiration` | `86400000` (24h) | JWT expiration time in milliseconds |
+| Layer | Technology |
+|---|---|
+| Runtime | Java 25 |
+| Framework | Spring Boot 4.1.1 (Web MVC) |
+| Database | PostgreSQL 16 |
+| Migrations | Flyway |
+| Security | Spring Security Crypto (BCrypt) |
+| Messaging | Apache Kafka (optional) |
+| Serialisation | Jackson (Databind) |
+| Validation | Jakarta Bean Validation |
+| Build | Maven 3.9 |
+| Containerisation | Docker / Docker Compose |
 
 ---
 
-## Database Configuration
+## Architecture Overview
 
-### 1. Datasource & Connection Pooling
+```
+HTTP Request
+     │
+     ▼
+AuthController  (POST /auth/register)
+     │
+     ▼
+AuthService
+  ├── Validates email uniqueness
+  ├── Hashes password (BCrypt)
+  ├── Assigns default TRAVELER role
+  ├── Persists User
+  └── OutboxEventPublisher
+          ├── Writes OutboxEvent record (same transaction)
+          └── After commit → KafkaUserEventPublisher
+                                └── Publishes to Kafka topic (if enabled)
 
-The service uses PostgreSQL with HikariCP connection pooling configured in `application.properties`:
-
-```properties
-spring.datasource.url=${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:identity_db}}
-spring.datasource.username=${SPRING_DATASOURCE_USERNAME:${DB_USER:postgres}}
-spring.datasource.password=${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:postgres}}
-spring.datasource.driver-class-name=org.postgresql.Driver
+OutboxEventRelayService  (scheduled, every 10 s by default)
+  └── Polls unpublished outbox_events → re-publishes to Kafka → marks published
 ```
 
-Optional HikariCP performance overrides (add to environment or properties):
+The service uses the **Transactional Outbox Pattern** to guarantee at-least-once event delivery. A `UserRegisteredEvent` is written to the `outbox_events` table within the same database transaction as the user record. A separate scheduler then relays any unpublished events to Kafka, providing a safety net for transient broker failures.
 
-```properties
-spring.datasource.hikari.maximum-pool-size=10
-spring.datasource.hikari.minimum-idle=2
-spring.datasource.hikari.idle-timeout=30000
-spring.datasource.hikari.connection-timeout=20000
+---
+
+## API Reference
+
+### Register User
+
+```
+POST /auth/register
 ```
 
-### 2. JPA & Hibernate Configuration
+Version negotiated via `X-API-Version` request header (default: `1`). The resolved version is echoed back in the `X-API-Version` response header.
 
-Hibernate is configured to **validate** the schema against Flyway migrations without attempting automatic DDL alterations:
+**Request body**
 
-```properties
-spring.jpa.hibernate.ddl-auto=validate
-spring.jpa.open-in-view=false
+```json
+{
+  "email": "jane.doe@example.com",
+  "password": "Str0ng!Pass",
+  "firstName": "Jane",
+  "lastName": "Doe"
+}
+```
+
+| Field | Type | Required | Constraints |
+|---|---|---|---|
+| `email` | string | yes | Valid email format, max 255 chars |
+| `password` | string | yes | 8–100 chars, must contain uppercase, lowercase, digit, and special character |
+| `firstName` | string | yes | 1–100 chars |
+| `lastName` | string | no | Max 100 chars |
+
+**Response — 201 Created**
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "jane.doe@example.com",
+  "firstName": "Jane",
+  "lastName": "Doe",
+  "status": "PENDING",
+  "emailVerified": false,
+  "roles": ["TRAVELER"],
+  "createdAt": "2026-09-07T02:46:54Z",
+  "updatedAt": "2026-09-07T02:46:54Z"
+}
+```
+
+> When `identity.registration.require-email-verification` is `false`, the initial status is `ACTIVE` and `emailVerified` is `true`.
+
+**Error responses**
+
+| Status | Condition |
+|---|---|
+| `400 Bad Request` | Validation failure or malformed JSON body |
+| `400 Bad Request` | Unsupported `X-API-Version` header value |
+| `409 Conflict` | Email address already registered |
+| `500 Internal Server Error` | System role misconfiguration or unexpected error |
+
+All error responses share a common shape:
+
+```json
+{
+  "timestamp": "2026-09-07T02:46:54Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Validation failed",
+  "path": "/auth/register",
+  "errors": {
+    "email": "Invalid email format",
+    "password": "Password must be at least 8 characters long..."
+  }
+}
+```
+
+The `errors` field is only present on validation failures (field-level detail).
+
+---
+
+## Testing the Registration Endpoint
+
+Make sure the service is running on port `8081` before sending requests.
+
+### curl
+
+Minimal request (last name optional):
+
+```bash
+curl -X POST http://localhost:8081/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.doe@example.com",
+    "password": "Str0ng!Pass1",
+    "firstName": "Jane",
+    "lastName": "Doe"
+  }'
+```
+
+With an explicit API version header:
+
+```bash
+curl -X POST http://localhost:8081/auth/register \
+  -H "Content-Type: application/json" \
+  -H "X-API-Version: 1" \
+  -d '{
+    "email": "jane.doe@example.com",
+    "password": "Str0ng!Pass1",
+    "firstName": "Jane",
+    "lastName": "Doe"
+  }'
+```
+
+Use `-i` to see response headers (including the echoed `X-API-Version`):
+
+```bash
+curl -i -X POST http://localhost:8081/auth/register \
+  -H "Content-Type: application/json" \
+  -H "X-API-Version: 1" \
+  -d '{
+    "email": "jane.doe@example.com",
+    "password": "Str0ng!Pass1",
+    "firstName": "Jane"
+  }'
+```
+
+### Postman / Insomnia
+
+1. Set method to **POST** and URL to `http://localhost:8081/auth/register`.
+2. Under **Headers**, add:
+   - `Content-Type: application/json`
+   - `X-API-Version: 1` *(optional — defaults to `1` if omitted)*
+3. Under **Body**, select **raw → JSON** and paste:
+
+```json
+{
+  "email": "jane.doe@example.com",
+  "password": "Str0ng!Pass1",
+  "firstName": "Jane",
+  "lastName": "Doe"
+}
+```
+
+4. Send. A successful registration returns **201 Created** with the user object in the body.
+
+### HTTPie
+
+```bash
+http POST http://localhost:8081/auth/register \
+  Content-Type:application/json \
+  X-API-Version:1 \
+  email=jane.doe@example.com \
+  password=Str0ng!Pass1 \
+  firstName=Jane \
+  lastName=Doe
 ```
 
 ---
 
-## Flyway Migration Configuration
+## Data Model
 
-Flyway manages all database migrations and executes automatically on application startup.
+### Users (`users`)
 
-### 1. Flyway Properties
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | Primary key, auto-generated |
+| `email` | VARCHAR(255) | Unique, normalised to lowercase |
+| `password_hash` | VARCHAR(255) | BCrypt hash |
+| `first_name` | VARCHAR(100) | — |
+| `last_name` | VARCHAR(100) | Nullable |
+| `status` | VARCHAR(20) | `ACTIVE`, `PENDING`, or `DEACTIVATED` |
+| `email_verified` | BOOLEAN | — |
+| `created_at` | TIMESTAMPTZ | Immutable |
+| `updated_at` | TIMESTAMPTZ | Auto-updated via trigger |
 
-```properties
-spring.flyway.enabled=true
-spring.flyway.locations=classpath:db/migration
-spring.flyway.baseline-on-migrate=true
-```
+### Roles (`roles`) and Permissions (`permissions`)
 
-- `spring.flyway.enabled`: Set to `false` to disable automatic migration on startup (e.g., in read-only replicas).
-- `spring.flyway.locations`: Path to SQL migration scripts (default: `classpath:db/migration`).
-- `spring.flyway.baseline-on-migrate`: When set to `true`, baselines existing un-migrated databases on first run.
+Three default roles seeded by `V2__seed_roles.sql`:
 
-### 2. Migration Scripts
+| Role | Description |
+|---|---|
+| `ADMIN` | Full access to all permissions |
+| `TRAVEL_MANAGER` | Approve bookings, manage policies, view reports |
+| `TRAVELER` | Submit and manage own bookings and expenses |
 
-Migrations are located in `src/main/resources/db/migration/`:
+Permissions cover users, roles, trips, policies, expenses, and reports. Roles and permissions are linked via the `role_permissions` join table. Users receive roles via `user_roles`. New registrations are automatically assigned the `TRAVELER` role.
 
-- `V1__init_schema.sql`: Creates initial schema (`users`, `roles`, `permissions`, `user_roles`, `role_permissions`), constraints, indexes, and timestamp triggers.
-- `V2__seed_roles.sql`: Seeds default roles (`ADMIN`, `TRAVEL_MANAGER`, `TRAVELER`), system permissions, and role-permission associations.
-- `V3__add_user_names.sql`: Adds `first_name` and `last_name` columns to the `users` table.
+### Outbox Events (`outbox_events`)
 
-### 3. Adding New Migrations
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | Primary key, auto-generated |
+| `event_type` | VARCHAR(255) | e.g. `UserRegisteredEvent` |
+| `payload` | TEXT | JSON-serialised event |
+| `created_at` | TIMESTAMPTZ | — |
+| `published` | BOOLEAN | `false` until successfully relayed |
 
-Create new SQL files in `src/main/resources/db/migration/` following the Flyway versioning pattern:
-
-```
-V<Version>__<Description>.sql
-```
-
-*Example:* `V4__add_user_profile_fields.sql`
+A partial index on `published = FALSE` keeps polling queries efficient.
 
 ---
 
-## JWT Configuration
+## Database Migrations
 
-JWT settings are configured in `application.properties`:
+Flyway runs automatically on startup. Scripts live in `src/main/resources/db/migration/`:
 
-```properties
-jwt.secret=${JWT_SECRET:change-me-in-production}
-jwt.expiration=${JWT_EXPIRATION:86400000}
+| Version | File | Description |
+|---|---|---|
+| V1 | `V1__init_schema.sql` | Creates `users`, `roles`, `permissions`, `user_roles`, `role_permissions`; indexes; `updated_at` triggers |
+| V2 | `V2__seed_roles.sql` | Seeds default roles, permissions, and role-permission associations |
+| V3 | `V3__add_user_names.sql` | Adds `first_name` and `last_name` columns to `users` |
+| V4 | `V4__create_outbox_table.sql` | Creates `outbox_events` table and polling index |
+
+To add a new migration, create a file following the naming convention:
+
+```
+V<next_version>__<short_description>.sql
 ```
 
-### Managing Local Secrets
+---
 
-For local development without exporting shell variables, add secrets to `src/main/resources/application-secrets.properties`:
+## Configuration
+
+### Priority Order
+
+1. Command-line arguments (`--server.port=8081`)
+2. Environment variables
+3. `src/main/resources/application-secrets.properties` *(optional, git-ignored)*
+4. `src/main/resources/application.properties` *(defaults)*
+
+### Environment Variables Reference
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `SERVER_PORT` | `8081` | HTTP port |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/identity_db` | Full JDBC URL; overrides `DB_HOST`/`DB_PORT`/`DB_NAME` |
+| `SPRING_DATASOURCE_USERNAME` | `postgres` | Database username |
+| `SPRING_DATASOURCE_PASSWORD` | *(required)* | Database password |
+| `DB_HOST` | `localhost` | Used in the default JDBC URL |
+| `DB_PORT` | `5432` | Used in the default JDBC URL (`5433` when using Docker Compose) |
+| `DB_NAME` | `identity_db` | Used in the default JDBC URL |
+| `JWT_SECRET` | `change-me-in-production` | Secret for signing JWTs |
+| `JWT_EXPIRATION` | `86400000` (24 h) | JWT TTL in milliseconds |
+| `REQUIRE_EMAIL_VERIFICATION` | `true` | `false` sets new users to `ACTIVE` immediately |
+| `KAFKA_ENABLED` | `false` | Enable live Kafka publishing |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker address |
+| `KAFKA_TOPIC_USER_REGISTERED` | `user.registered` | Topic for `UserRegisteredEvent` |
+| `OUTBOX_RELAY_FIXED_DELAY_MS` | `10000` | Delay between outbox relay runs (ms) |
+| `OUTBOX_RELAY_BATCH_SIZE` | `50` | Maximum events per relay run |
+
+### Local Development Secrets
+
+To avoid exporting shell variables, create `src/main/resources/application-secrets.properties` (this file is git-ignored):
 
 ```properties
 jwt.secret=your-secure-local-jwt-secret-key-min-256-bits
-jwt.expiration=86400000
+spring.datasource.password=postgres
 ```
-
-> **Note:** `application-secrets.properties` is imported optionally via `spring.config.import=optional:classpath:application-secrets.properties` and should never be committed with production credentials.
 
 ---
 
@@ -126,77 +307,101 @@ jwt.expiration=86400000
 
 ### Option 1: Docker Compose (Full Stack)
 
-Builds the Identity Service and spins up a PostgreSQL container with migrations applied automatically:
+Starts both PostgreSQL and the Identity Service. Migrations run automatically.
 
 ```bash
-# Start both database and service in background
+# Start all services
 docker compose up --build -d
 
-# View service logs
+# Follow service logs
 docker compose logs -f identity-service
 
-# Stop all containers (preserves database volume)
+# Stop (preserves database volume)
 docker compose down
 
-# Stop and wipe database volume (for fresh restart)
+# Stop and remove database volume (clean restart)
 docker compose down -v
 ```
 
-### Option 2: Docker Database + Local Maven Service
+### Option 2: Docker Database + Local Maven
 
-Run PostgreSQL via Docker Compose, and run the Identity Service locally with Maven:
+Run PostgreSQL via Docker Compose and the service locally via Maven:
 
 ```bash
-# 1. Start only PostgreSQL
+# 1. Start only PostgreSQL (exposed on 5433)
 docker compose up -d postgres
 
-# 2. Run the service locally (pointing to port 5433)
+# 2. Run the service
 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/identity_db \
 SPRING_DATASOURCE_USERNAME=postgres \
 SPRING_DATASOURCE_PASSWORD=postgres \
 ./mvnw spring-boot:run
 ```
 
-### Option 3: Local PostgreSQL Service
+### Option 3: Local PostgreSQL
 
-If you have a local PostgreSQL instance running on default port `5432`:
+If you have PostgreSQL running locally on port `5432`:
 
 ```bash
 # 1. Create the database
 createdb identity_db
 
-# 2. Run the service
-./mvnw spring-boot:run
+# 2. Run the service (password must be set)
+SPRING_DATASOURCE_PASSWORD=postgres ./mvnw spring-boot:run
 ```
 
 ---
 
 ## Connecting to the Database
 
-### CLI (`psql`)
-
-When connecting to the Docker Compose PostgreSQL container:
+### psql
 
 ```bash
+# Docker Compose PostgreSQL (port 5433)
 PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -d identity_db
+
+# Local PostgreSQL (port 5432)
+PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d identity_db
 ```
 
-### GUI Database Clients (DBeaver, DataGrip, pgAdmin)
+### GUI Clients (DBeaver, DataGrip, pgAdmin)
 
-| Parameter | Value |
-|-----------|-------|
-| **Host** | `localhost` |
-| **Port** | `5433` (Docker Compose) or `5432` (Local Postgres) |
-| **Database** | `identity_db` |
-| **Username** | `postgres` |
-| **Password** | `postgres` |
+| Parameter | Docker Compose | Local PostgreSQL |
+|---|---|---|
+| Host | `localhost` | `localhost` |
+| Port | `5433` | `5432` |
+| Database | `identity_db` | `identity_db` |
+| Username | `postgres` | `postgres` |
+| Password | `postgres` | `postgres` |
 
 ---
 
 ## Testing
 
-Run unit and integration tests using Maven. Integration tests utilize Testcontainers and automatically manage isolated PostgreSQL test instances:
+Integration tests use [Testcontainers](https://testcontainers.com/) to spin up an isolated PostgreSQL instance automatically — no local database required.
 
 ```bash
 ./mvnw clean test
 ```
+
+Test coverage includes:
+
+- `AuthRegistrationIntegrationTest` — end-to-end registration flow via HTTP
+- `AuthServiceTest` — unit tests for `AuthService` business logic
+- `KafkaUserEventPublisherTest` — Kafka publisher behaviour (enabled/disabled)
+- `RegisterRequestValidationTest` — Bean Validation constraints on `RegisterRequest`
+- `DatabaseMigrationTests` — verifies all Flyway migrations apply cleanly
+
+---
+
+## CI/CD
+
+GitHub Actions workflows in `.github/workflows/`:
+
+| Workflow | Trigger | Description |
+|---|---|---|
+| `build.yml` | Push / PR to `main` | Compiles, runs tests (`mvn verify`), and optionally runs SonarQube analysis |
+| `pr-validator.yml` | Pull request | Validates PR title and description against the PR template |
+| `ping.yml` | Manual / scheduled | Connectivity health check |
+
+SonarQube analysis runs only when `SONAR_TOKEN` and `SONAR_HOST_URL` secrets are configured in the repository.
