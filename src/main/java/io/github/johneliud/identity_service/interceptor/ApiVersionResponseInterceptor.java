@@ -32,9 +32,17 @@ public class ApiVersionResponseInterceptor implements HandlerInterceptor {
         }
 
         if (version != null) {
-            response.setHeader(RESPONSE_HEADER, version);
+            response.setHeader(RESPONSE_HEADER, normalise(version));
         }
 
         return true;
+    }
+
+    static String normalise(String version) {
+        if (version != null && version.length() > 1
+                && (version.charAt(0) == 'v' || version.charAt(0) == 'V')) {
+            return version.substring(1);
+        }
+        return version;
     }
 }

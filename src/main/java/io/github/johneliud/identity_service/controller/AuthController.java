@@ -24,7 +24,7 @@ public class AuthController {
 
     @PostMapping(value = "/register", version = "1")
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
-        log.debug("Processing registration request for email: {}", request.getEmail());
+        log.debug("Processing registration request");
         UserResponse response = authService.register(request);
 
         return ResponseEntity

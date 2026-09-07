@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import io.github.johneliud.identity_service.dto.RegisterRequest;
 import io.github.johneliud.identity_service.dto.UserResponse;
-import io.github.johneliud.identity_service.event.UserEventPublisher;
+import io.github.johneliud.identity_service.event.OutboxEventPublisher;
 import io.github.johneliud.identity_service.event.UserRegisteredEvent;
 import io.github.johneliud.identity_service.exception.RoleNotFoundException;
 import io.github.johneliud.identity_service.exception.UserAlreadyExistsException;
@@ -32,19 +32,19 @@ public class AuthService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-    private final UserEventPublisher userEventPublisher;
+    private final OutboxEventPublisher outboxEventPublisher;
     private final boolean requireEmailVerification;
 
     public AuthService(
             UserRepository userRepository,
             RoleRepository roleRepository,
             PasswordEncoder passwordEncoder,
-            UserEventPublisher userEventPublisher,
+            OutboxEventPublisher outboxEventPublisher,
             @Value("${identity.registration.require-email-verification:true}") boolean requireEmailVerification) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
-        this.userEventPublisher = userEventPublisher;
+        this.outboxEventPublisher = outboxEventPublisher;
         this.requireEmailVerification = requireEmailVerification;
     }
 
@@ -86,7 +86,6 @@ public class AuthService {
         log.info("Successfully registered new user: id='{}', email='{}', status='{}'",
                 savedUser.getId(), savedUser.getEmail(), savedUser.getStatus());
 
-        // Publish UserRegistered Kafka event
         Set<String> roleNames = savedUser.getRoles().stream()
                 .map(Role::getName)
                 .collect(Collectors.toSet());
@@ -100,7 +99,8 @@ public class AuthService {
                 roleNames,
                 Instant.now()
         );
-        userEventPublisher.publishUserRegistered(event);
+
+        outboxEventPublisher.publishUserRegistered(event);
 
         return UserResponse.builder()
                 .id(savedUser.getId())
