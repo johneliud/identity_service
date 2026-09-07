@@ -31,7 +31,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import io.github.johneliud.identity_service.dto.RegisterRequest;
-import io.github.johneliud.identity_service.event.UserEventPublisher;
+import io.github.johneliud.identity_service.event.OutboxEventPublisher;
 import io.github.johneliud.identity_service.event.UserRegisteredEvent;
 import io.github.johneliud.identity_service.model.Role;
 import io.github.johneliud.identity_service.model.User;
@@ -62,7 +62,7 @@ class AuthRegistrationIntegrationTest {
     private ObjectMapper objectMapper;
 
     @MockitoBean
-    private UserEventPublisher userEventPublisher;
+    private OutboxEventPublisher outboxEventPublisher;
 
     @Test
     @DisplayName("POST /auth/register - Success: 201 Created with Traveler role, hashed password, and version header")
@@ -108,8 +108,8 @@ class AuthRegistrationIntegrationTest {
         // Verify Traveler role association
         assertThat(saved.getRoles()).extracting(Role::getName).contains("TRAVELER");
 
-        // Verify Kafka event published
-        verify(userEventPublisher, atLeastOnce()).publishUserRegistered(any(UserRegisteredEvent.class));
+        // Verify outbox event was dispatched (synchronous, within the transaction)
+        verify(outboxEventPublisher, atLeastOnce()).publishUserRegistered(any(UserRegisteredEvent.class));
     }
 
     @Test
@@ -140,7 +140,7 @@ class AuthRegistrationIntegrationTest {
                 .build();
 
         mockMvc.perform(post("/auth/register")
-                        .header("X-API-Version", "1")
+                        .header("X-API-Version", "v1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -202,7 +202,7 @@ class AuthRegistrationIntegrationTest {
                 .andExpect(jsonPath("$.errors.password", notNullValue()))
                 .andExpect(jsonPath("$.errors.firstName", notNullValue()));
 
-        verify(userEventPublisher, never()).publishUserRegistered(any());
+        verify(outboxEventPublisher, never()).publishUserRegistered(any());
     }
 
     @Test

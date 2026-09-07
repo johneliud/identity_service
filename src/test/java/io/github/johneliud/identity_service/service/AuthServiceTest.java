@@ -21,7 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import io.github.johneliud.identity_service.dto.RegisterRequest;
 import io.github.johneliud.identity_service.dto.UserResponse;
-import io.github.johneliud.identity_service.event.UserEventPublisher;
+import io.github.johneliud.identity_service.event.OutboxEventPublisher;
 import io.github.johneliud.identity_service.event.UserRegisteredEvent;
 import io.github.johneliud.identity_service.exception.RoleNotFoundException;
 import io.github.johneliud.identity_service.exception.UserAlreadyExistsException;
@@ -44,7 +44,7 @@ class AuthServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private UserEventPublisher userEventPublisher;
+    private OutboxEventPublisher outboxEventPublisher;
 
     private AuthService authServiceWithVerification;
     private AuthService authServiceWithoutVerification;
@@ -53,10 +53,10 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         authServiceWithVerification = new AuthService(
-                userRepository, roleRepository, passwordEncoder, userEventPublisher, true
+                userRepository, roleRepository, passwordEncoder, outboxEventPublisher, true
         );
         authServiceWithoutVerification = new AuthService(
-                userRepository, roleRepository, passwordEncoder, userEventPublisher, false
+                userRepository, roleRepository, passwordEncoder, outboxEventPublisher, false
         );
 
         travelerRole = Role.builder()
@@ -113,9 +113,9 @@ class AuthServiceTest {
         assertThat(saved.getStatus()).isEqualTo(UserStatus.PENDING);
         assertThat(saved.getEmailVerified()).isFalse();
 
-        // Verify Kafka event published
+        // Verify outbox event persisted (outbox pattern — not direct Kafka publish)
         ArgumentCaptor<UserRegisteredEvent> eventCaptor = ArgumentCaptor.forClass(UserRegisteredEvent.class);
-        verify(userEventPublisher).publishUserRegistered(eventCaptor.capture());
+        verify(outboxEventPublisher).publishUserRegistered(eventCaptor.capture());
         UserRegisteredEvent event = eventCaptor.getValue();
         assertThat(event.userId()).isEqualTo(generatedId);
         assertThat(event.email()).isEqualTo("newuser@example.com");
@@ -159,7 +159,7 @@ class AuthServiceTest {
         verify(roleRepository, never()).findByName(any());
         verify(passwordEncoder, never()).encode(any());
         verify(userRepository, never()).save(any());
-        verify(userEventPublisher, never()).publishUserRegistered(any());
+        verify(outboxEventPublisher, never()).publishUserRegistered(any());
     }
 
     @Test
@@ -197,6 +197,6 @@ class AuthServiceTest {
                 .hasMessageContaining("TRAVELER");
 
         verify(userRepository, never()).save(any());
-        verify(userEventPublisher, never()).publishUserRegistered(any());
+        verify(outboxEventPublisher, never()).publishUserRegistered(any());
     }
 }
