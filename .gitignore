@@ -37,3 +37,4 @@ src/main/resources/application-secrets.properties
 *.env
 
 *.jar
+.cache_ggshield

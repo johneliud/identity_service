@@ -51,7 +51,7 @@ class DatabaseMigrationTests {
                 "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank"
         );
 
-        assertThat(migrations).hasSizeGreaterThanOrEqualTo(3);
+        assertThat(migrations).hasSizeGreaterThanOrEqualTo(4);
         assertThat(migrations.get(0).get("version")).isEqualTo("1");
         assertThat(migrations.get(0).get("description")).isEqualTo("init schema");
         assertThat(migrations.get(0).get("success")).isEqualTo(true);
@@ -63,6 +63,10 @@ class DatabaseMigrationTests {
         assertThat(migrations.get(2).get("version")).isEqualTo("3");
         assertThat(migrations.get(2).get("description")).isEqualTo("add user names");
         assertThat(migrations.get(2).get("success")).isEqualTo(true);
+
+        assertThat(migrations.get(3).get("version")).isEqualTo("4");
+        assertThat(migrations.get(3).get("description")).isEqualTo("create outbox table");
+        assertThat(migrations.get(3).get("success")).isEqualTo(true);
     }
 
     @Test
