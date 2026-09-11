@@ -113,7 +113,7 @@ All error responses share a common shape:
   "message": "Validation failed",
   "path": "/auth/register",
   "errors": {
-    "email": "Invalid email format",
+    "email": "Invalid email format. Allowed format: yourname@domain.com",
     "password": "Password must be at least 8 characters long..."
   }
 }

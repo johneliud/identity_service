@@ -17,7 +17,7 @@ import lombok.ToString;
 public class RegisterRequest {
 
     @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
+    @Email(message = "Invalid email format. Allowed format: yourname@domain.com")
     @Size(max = 255, message = "Email must not exceed 255 characters")
     private String email;
 
