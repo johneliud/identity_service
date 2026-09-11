@@ -1,25 +1,27 @@
 package io.github.johneliud.identity_service.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
 @Data
-@Builder
 @NoArgsConstructor
-@AllArgsConstructor
 public class RegisterRequest {
 
     @NotBlank(message = "Email is required")
     @Email(message = "Invalid email format. Allowed format: yourname@domain.com")
     @Size(max = 255, message = "Email must not exceed 255 characters")
     private String email;
+
+    public void setEmail(String email) {
+        this.email = email == null ? null : email.trim();
+    }
 
     @NotBlank(message = "Password is required")
     @Pattern(
@@ -35,4 +37,19 @@ public class RegisterRequest {
 
     @Size(max = 100, message = "Last name must not exceed 100 characters")
     private String lastName;
+
+    
+    @Builder
+    public RegisterRequest(String email, String password, String firstName, String lastName) {
+        this.email = email == null ? null : email.trim();
+        this.password = password;
+        this.firstName = firstName;
+        this.lastName = lastName;
+    }
+
+    @AssertTrue(message = "Password must not exceed 72 bytes when UTF-8 encoded")
+    public boolean isPasswordWithinBcryptLimit() {
+        return password == null
+                || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 72;
+    }
 }

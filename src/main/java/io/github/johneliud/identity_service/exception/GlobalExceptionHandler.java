@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleUserAlreadyExistsException(
             UserAlreadyExistsException ex, HttpServletRequest request) {
-        log.warn("Registration conflict: {}", ex.getMessage());
+        log.warn("Registration conflict on {}", request.getRequestURI());
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())

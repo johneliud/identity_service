@@ -44,7 +44,7 @@ OutboxEventRelayService  (scheduled, every 10 s by default)
   └── Polls unpublished outbox_events → re-publishes to Kafka → marks published
 ```
 
-The service uses the **Transactional Outbox Pattern** to guarantee at-least-once event delivery. A `UserRegisteredEvent` is written to the `outbox_events` table within the same database transaction as the user record. A separate scheduler then relays any unpublished events to Kafka, providing a safety net for transient broker failures.
+The service uses the **Transactional Outbox Pattern** for durable event persistence: a `UserRegisteredEvent` is written to the `outbox_events` table within the same database transaction as the user record, so no registration is lost even if publishing fails. At-least-once delivery to Kafka applies only when Kafka publication is enabled (`KAFKA_ENABLED=true`) and the relay is running — a separate scheduler then relays any unpublished events to Kafka, providing a safety net for transient broker failures. With the default `KAFKA_ENABLED=false`, events are durably stored in the outbox but not delivered to Kafka.
 
 ---
 

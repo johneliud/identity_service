@@ -2,6 +2,7 @@ package io.github.johneliud.identity_service.service;
 
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -50,10 +51,9 @@ public class AuthService {
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
-        String normalizedEmail = request.getEmail().trim().toLowerCase();
-
+        String normalizedEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
         if (userRepository.existsByEmail(normalizedEmail)) {
-            log.warn("Registration rejected: email '{}' already in use", normalizedEmail);
+            log.warn("Registration rejected: email already in use");
             throw new UserAlreadyExistsException("User with email '" + normalizedEmail + "' already exists");
         }
 
@@ -83,8 +83,8 @@ public class AuthService {
                 .build();
 
         User savedUser = userRepository.save(user);
-        log.info("Successfully registered new user: id='{}', email='{}', status='{}'",
-                savedUser.getId(), savedUser.getEmail(), savedUser.getStatus());
+        log.info("Successfully registered new user: id='{}', status='{}'",
+                savedUser.getId(), savedUser.getStatus());
 
         Set<String> roleNames = savedUser.getRoles().stream()
                 .map(Role::getName)
