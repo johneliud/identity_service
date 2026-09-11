@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,8 @@ import tools.jackson.databind.ObjectMapper;
 @Transactional
 class AuthRegistrationIntegrationTest {
 
+    private static final String VALID_PASSWORD = UUID.randomUUID() + "Aa1!";
+
     @Container
     @ServiceConnection
     static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16-alpine");
@@ -69,7 +72,7 @@ class AuthRegistrationIntegrationTest {
     void register_success_returns201WithTravelerRole() throws Exception {
         RegisterRequest request = RegisterRequest.builder()
                 .email("traveler.success@company.com")
-                .password("Str0ng!P@ssword")
+                .password(VALID_PASSWORD)
                 .firstName("John")
                 .lastName("Doe")
                 .build();
@@ -101,9 +104,9 @@ class AuthRegistrationIntegrationTest {
         assertThat(saved.getEmailVerified()).isFalse();
 
         // Verify password is NOT stored in plaintext and is valid BCrypt
-        assertThat(saved.getPasswordHash()).isNotEqualTo("Str0ng!P@ssword");
+        assertThat(saved.getPasswordHash()).isNotEqualTo(VALID_PASSWORD);
         assertThat(saved.getPasswordHash()).startsWith("$2a$");
-        assertThat(passwordEncoder.matches("Str0ng!P@ssword", saved.getPasswordHash())).isTrue();
+        assertThat(passwordEncoder.matches(VALID_PASSWORD, saved.getPasswordHash())).isTrue();
 
         // Verify Traveler role association
         assertThat(saved.getRoles()).extracting(Role::getName).contains("TRAVELER");
@@ -117,7 +120,7 @@ class AuthRegistrationIntegrationTest {
     void register_success_defaultApiVersion() throws Exception {
         RegisterRequest request = RegisterRequest.builder()
                 .email("traveler.noheader@company.com")
-                .password("Str0ng!P@ssword")
+                .password(VALID_PASSWORD)
                 .firstName("Alice")
                 .build();
 
@@ -135,7 +138,7 @@ class AuthRegistrationIntegrationTest {
     void register_success_withV1AliasHeader() throws Exception {
         RegisterRequest request = RegisterRequest.builder()
                 .email("traveler.v1alias@company.com")
-                .password("Str0ng!P@ssword")
+                .password(VALID_PASSWORD)
                 .firstName("Bob")
                 .build();
 
@@ -153,7 +156,7 @@ class AuthRegistrationIntegrationTest {
     void register_duplicateEmail_returns409Conflict() throws Exception {
         RegisterRequest request = RegisterRequest.builder()
                 .email("duplicate@company.com")
-                .password("Str0ng!P@ssword")
+                .password(VALID_PASSWORD)
                 .firstName("First")
                 .lastName("User")
                 .build();
@@ -167,7 +170,7 @@ class AuthRegistrationIntegrationTest {
         // Attempt second registration with same email (uppercase to test case insensitivity)
         RegisterRequest duplicateRequest = RegisterRequest.builder()
                 .email("DUPLICATE@company.com")
-                .password("Str0ng!P@ssword")
+                .password(VALID_PASSWORD)
                 .firstName("Second")
                 .lastName("User")
                 .build();
@@ -210,7 +213,7 @@ class AuthRegistrationIntegrationTest {
     void register_unsupportedApiVersion_returns400BadRequest() throws Exception {
         RegisterRequest request = RegisterRequest.builder()
                 .email("version.test@company.com")
-                .password("Str0ng!P@ssword")
+                .password(VALID_PASSWORD)
                 .firstName("Version")
                 .build();
 

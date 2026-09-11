@@ -3,6 +3,7 @@ package io.github.johneliud.identity_service.dto;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +19,7 @@ import jakarta.validation.ValidatorFactory;
 class RegisterRequestValidationTest {
 
     private static Validator validator;
+    private static final String VALID_PASSWORD = UUID.randomUUID() + "Aa1!";
 
     @BeforeAll
     static void setUp() {
@@ -28,7 +30,7 @@ class RegisterRequestValidationTest {
     private RegisterRequest createValidRequest() {
         return RegisterRequest.builder()
                 .email("traveler@example.com")
-                .password("Str0ng!Pass")
+                .password(VALID_PASSWORD)
                 .firstName("John")
                 .lastName("Doe")
                 .build();
@@ -126,6 +128,6 @@ class RegisterRequestValidationTest {
     void toString_excludesPlaintextPassword() {
         RegisterRequest request = createValidRequest();
         String stringRepresentation = request.toString();
-        assertThat(stringRepresentation).doesNotContain("Str0ng!Pass");
+        assertThat(stringRepresentation).doesNotContain(VALID_PASSWORD);
     }
 }
