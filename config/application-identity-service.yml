@@ -1,0 +1,33 @@
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: identity-register
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/auth/register
+                - Method=POST
+
+            - id: identity-login
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/auth/login
+                - Method=POST
+              filters:
+                - name: RateLimitGatewayFilter
+
+            - id: identity-refresh
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/auth/refresh
+                - Method=POST
+              filters:
+                - name: RateLimitGatewayFilter
+
+            - id: identity-logout
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/auth/logout
+                - Method=POST
