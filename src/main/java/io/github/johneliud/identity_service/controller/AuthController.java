@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.github.johneliud.identity_service.dto.LoginRequest;
 import io.github.johneliud.identity_service.dto.LoginResponse;
+import io.github.johneliud.identity_service.dto.RefreshTokenRequest;
+import io.github.johneliud.identity_service.dto.RefreshTokenResponse;
 import io.github.johneliud.identity_service.dto.RegisterRequest;
 import io.github.johneliud.identity_service.dto.UserResponse;
 import io.github.johneliud.identity_service.service.AuthService;
@@ -42,5 +44,25 @@ public class AuthController {
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(response);
+    }
+
+    @PostMapping(value = "/refresh", version = "1")
+    public ResponseEntity<RefreshTokenResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        log.debug("Processing token refresh request");
+        RefreshTokenResponse response = authService.refresh(request);
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(response);
+    }
+
+    @PostMapping(value = "/logout", version = "1")
+    public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
+        log.debug("Processing logout request");
+        authService.logout(request);
+
+        return ResponseEntity
+                .status(HttpStatus.NO_CONTENT)
+                .build();
     }
 }
