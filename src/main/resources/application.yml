@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: identity_service
+  config:
+    import:
+      - optional:classpath:application-secrets.properties
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:identity_db}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DB_USER:postgres}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD}}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+server:
+  port: ${SERVER_PORT:8081}
+  url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:900000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+
+identity:
+  registration:
+    require-email-verification: ${REQUIRE_EMAIL_VERIFICATION:true}
+  kafka:
+    enabled: ${KAFKA_ENABLED:false}
+    topics:
+      user-registered: ${KAFKA_TOPIC_USER_REGISTERED:user.registered}
+  outbox:
+    relay:
+      fixed-delay-ms: ${OUTBOX_RELAY_FIXED_DELAY_MS:10000}
+      batch-size: ${OUTBOX_RELAY_BATCH_SIZE:50}
+
+logging:
+  level:
+    io.github.johneliud.identity_service: INFO
+    org.springframework.web: INFO
