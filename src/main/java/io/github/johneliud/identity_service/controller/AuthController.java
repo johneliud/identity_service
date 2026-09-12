@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.github.johneliud.identity_service.dto.LoginRequest;
+import io.github.johneliud.identity_service.dto.LoginResponse;
 import io.github.johneliud.identity_service.dto.RegisterRequest;
 import io.github.johneliud.identity_service.dto.UserResponse;
 import io.github.johneliud.identity_service.service.AuthService;
@@ -29,6 +31,16 @@ public class AuthController {
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
+                .body(response);
+    }
+
+    @PostMapping(value = "/login", version = "1")
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        log.debug("Processing login request");
+        LoginResponse response = authService.login(request);
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
                 .body(response);
     }
 }
