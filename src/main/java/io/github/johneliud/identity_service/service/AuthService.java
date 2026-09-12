@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import io.github.johneliud.identity_service.config.JwtTokenProvider;
 import io.github.johneliud.identity_service.dto.LoginRequest;
 import io.github.johneliud.identity_service.dto.LoginResponse;
+import io.github.johneliud.identity_service.dto.RefreshTokenRequest;
+import io.github.johneliud.identity_service.dto.RefreshTokenResponse;
 import io.github.johneliud.identity_service.dto.RegisterRequest;
 import io.github.johneliud.identity_service.dto.UserResponse;
 import io.github.johneliud.identity_service.event.OutboxEventPublisher;
@@ -24,6 +26,7 @@ import io.github.johneliud.identity_service.event.UserRegisteredEvent;
 import io.github.johneliud.identity_service.exception.AccountDeactivatedException;
 import io.github.johneliud.identity_service.exception.AccountNotVerifiedException;
 import io.github.johneliud.identity_service.exception.InvalidCredentialsException;
+import io.github.johneliud.identity_service.exception.InvalidRefreshTokenException;
 import io.github.johneliud.identity_service.exception.RoleNotFoundException;
 import io.github.johneliud.identity_service.exception.UserAlreadyExistsException;
 import io.github.johneliud.identity_service.model.RefreshToken;
@@ -181,6 +184,69 @@ public class AuthService {
                 .tokenType("Bearer")
                 .expiresIn(jwtTokenProvider.getAccessTokenExpirationMs() / 1000)
                 .build();
+    }
+
+    @Transactional
+    public RefreshTokenResponse refresh(RefreshTokenRequest request) {
+        String hashedToken = hashToken(request.getRefreshToken());
+
+        RefreshToken existingToken = refreshTokenRepository.findByTokenHashAndRevokedFalse(hashedToken)
+                .orElseThrow(() -> {
+                    log.warn("Refresh failed: token not found or revoked");
+                    return new InvalidRefreshTokenException("Invalid or revoked refresh token");
+                });
+
+        if (existingToken.isExpired()) {
+            log.warn("Refresh failed: token expired for user '{}'", existingToken.getUser().getEmail());
+            throw new InvalidRefreshTokenException("Refresh token has expired");
+        }
+
+        User user = existingToken.getUser();
+
+        if (user.getStatus() == UserStatus.DEACTIVATED) {
+            log.warn("Refresh rejected: account deactivated for user '{}'", user.getEmail());
+            throw new AccountDeactivatedException("Account has been deactivated");
+        }
+
+        existingToken.setRevoked(true);
+        refreshTokenRepository.save(existingToken);
+
+        Set<String> roleNames = user.getRoles().stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+
+        String newAccessToken = jwtTokenProvider.generateAccessToken(user.getId().toString(), roleNames);
+
+        String newRawRefreshToken = jwtTokenProvider.generateRefreshToken();
+        String newHashedRefreshToken = hashToken(newRawRefreshToken);
+
+        RefreshToken newRefreshTokenEntity = RefreshToken.builder()
+                .tokenHash(newHashedRefreshToken)
+                .user(user)
+                .expiresAt(Instant.now().plusMillis(jwtTokenProvider.getRefreshTokenExpirationMs()))
+                .build();
+        refreshTokenRepository.save(newRefreshTokenEntity);
+
+        log.info("Successful token refresh for user '{}'", user.getEmail());
+
+        return RefreshTokenResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(newRawRefreshToken)
+                .tokenType("Bearer")
+                .expiresIn(jwtTokenProvider.getAccessTokenExpirationMs() / 1000)
+                .build();
+    }
+
+    @Transactional
+    public void logout(RefreshTokenRequest request) {
+        String hashedToken = hashToken(request.getRefreshToken());
+
+        refreshTokenRepository.findByTokenHashAndRevokedFalse(hashedToken)
+                .ifPresent(token -> {
+                    token.setRevoked(true);
+                    refreshTokenRepository.save(token);
+                    log.info("Refresh token revoked for user '{}'", token.getUser().getEmail());
+                });
     }
 
     private String hashToken(String token) {

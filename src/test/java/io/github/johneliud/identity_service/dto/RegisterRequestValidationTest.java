@@ -19,7 +19,7 @@ import jakarta.validation.ValidatorFactory;
 class RegisterRequestValidationTest {
 
     private static Validator validator;
-    private static final String VALID_PASSWORD = UUID.randomUUID() + "Aa1!";
+    private static final String USER_PASSWORD = UUID.randomUUID() + "Aa1!";
 
     @BeforeAll
     static void setUp() {
@@ -30,7 +30,7 @@ class RegisterRequestValidationTest {
     private RegisterRequest createValidRequest() {
         return RegisterRequest.builder()
                 .email("traveler@example.com")
-                .password(VALID_PASSWORD)
+                .password(USER_PASSWORD)
                 .firstName("John")
                 .lastName("Doe")
                 .build();
@@ -128,6 +128,6 @@ class RegisterRequestValidationTest {
     void toString_excludesPlaintextPassword() {
         RegisterRequest request = createValidRequest();
         String stringRepresentation = request.toString();
-        assertThat(stringRepresentation).doesNotContain(VALID_PASSWORD);
+        assertThat(stringRepresentation).doesNotContain(USER_PASSWORD);
     }
 }
