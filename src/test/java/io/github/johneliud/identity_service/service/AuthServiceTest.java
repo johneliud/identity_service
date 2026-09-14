@@ -567,7 +567,7 @@ class AuthServiceTest {
         authServiceWithVerification.changePassword(request, userId);
 
         verify(userRepository).save(any(User.class));
-        verify(outboxEventPublisher).publishUserUpdated(any());
+        verify(outboxEventPublisher).publishUserUpdated(any(User.class), anyString());
     }
 
     @Test
@@ -692,7 +692,7 @@ class AuthServiceTest {
 
         assertThat(resetToken.getUsed()).isTrue();
         verify(userRepository).save(any(User.class));
-        verify(outboxEventPublisher).publishUserUpdated(any());
+        verify(outboxEventPublisher).publishUserUpdated(any(User.class), anyString());
     }
 
     @Test
