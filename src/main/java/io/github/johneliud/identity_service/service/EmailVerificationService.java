@@ -23,6 +23,7 @@ public class EmailVerificationService {
     private final UserRepository userRepository;
     private final OutboxEventPublisher outboxEventPublisher;
     private final TokenHashUtil tokenHashUtil;
+    private final EmailService emailService;
     private final long verificationTokenExpirationMs;
 
     public EmailVerificationService(
@@ -30,11 +31,13 @@ public class EmailVerificationService {
             UserRepository userRepository,
             OutboxEventPublisher outboxEventPublisher,
             TokenHashUtil tokenHashUtil,
+            EmailService emailService,
             @Value("${identity.email-verification.token-expiration-ms:3600000}") long verificationTokenExpirationMs) {
         this.verificationTokenRepository = verificationTokenRepository;
         this.userRepository = userRepository;
         this.outboxEventPublisher = outboxEventPublisher;
         this.tokenHashUtil = tokenHashUtil;
+        this.emailService = emailService;
         this.verificationTokenExpirationMs = verificationTokenExpirationMs;
     }
 
@@ -57,8 +60,7 @@ public class EmailVerificationService {
                 .build();
         verificationTokenRepository.save(verificationToken);
 
-        log.info("Email verification token generated for user '{}'. Token: '{}' would be sent via email",
-                user.getEmail(), rawToken);
+        emailService.sendVerificationEmail(user.getEmail(), rawToken);
 
         return rawToken;
     }
