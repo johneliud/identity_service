@@ -34,6 +34,7 @@ public class RegistrationService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final OutboxEventPublisher outboxEventPublisher;
+    private final EmailVerificationService emailVerificationService;
     private final boolean requireEmailVerification;
 
     public RegistrationService(
@@ -41,11 +42,13 @@ public class RegistrationService {
             RoleRepository roleRepository,
             PasswordEncoder passwordEncoder,
             OutboxEventPublisher outboxEventPublisher,
+            EmailVerificationService emailVerificationService,
             @Value("${identity.registration.require-email-verification:true}") boolean requireEmailVerification) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.outboxEventPublisher = outboxEventPublisher;
+        this.emailVerificationService = emailVerificationService;
         this.requireEmailVerification = requireEmailVerification;
     }
 
@@ -102,6 +105,11 @@ public class RegistrationService {
 
         outboxEventPublisher.publishUserRegistered(event);
 
+        String verificationToken = null;
+        if (requireEmailVerification) {
+            verificationToken = emailVerificationService.generateToken(savedUser);
+        }
+
         return UserResponse.builder()
                 .id(savedUser.getId())
                 .email(savedUser.getEmail())
@@ -110,6 +118,7 @@ public class RegistrationService {
                 .status(savedUser.getStatus())
                 .emailVerified(savedUser.getEmailVerified())
                 .roles(roleNames)
+                .verificationToken(verificationToken)
                 .createdAt(savedUser.getCreatedAt())
                 .updatedAt(savedUser.getUpdatedAt())
                 .build();
