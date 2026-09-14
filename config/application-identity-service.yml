@@ -31,3 +31,25 @@ spring:
               predicates:
                 - Path=/auth/logout
                 - Method=POST
+
+            - id: identity-change-password
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/auth/change-password
+                - Method=POST
+              filters:
+                - name: AuthenticationFilter
+
+            - id: identity-forgot-password
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/auth/forgot-password
+                - Method=POST
+              filters:
+                - name: RateLimitGatewayFilter
+
+            - id: identity-reset-password
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/auth/reset-password
+                - Method=POST
