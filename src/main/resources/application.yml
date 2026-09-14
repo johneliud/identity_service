@@ -60,8 +60,7 @@ identity:
   kafka:
     enabled: ${KAFKA_ENABLED:false}
     topics:
-      user-registered: ${KAFKA_TOPIC_USER_REGISTERED:user.registered}
-      user-updated: ${KAFKA_TOPIC_USER_UPDATED:user.updated}
+      identity-events: ${KAFKA_TOPIC_IDENTITY_EVENTS:identity.events}
   outbox:
     relay:
       fixed-delay-ms: ${OUTBOX_RELAY_FIXED_DELAY_MS:10000}
