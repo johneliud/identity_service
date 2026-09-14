@@ -93,6 +93,13 @@ identity_service/
 - Docker and Docker Compose
 - PostgreSQL (or use Docker Compose to manage it)
 
+### Clone
+
+```bash
+git clone https://github.com/johneliud/travel_management_system.git
+cd travel_management_system/backend/identity_service
+```
+
 ### Run with Docker Compose
 
 Starts PostgreSQL and the Identity Service. Migrations run automatically.
@@ -165,8 +172,7 @@ Configuration is loaded in this priority order:
 | `DEV_INCLUDE_VERIFICATION_TOKEN_IN_RESPONSE` | `true` | Include token in register response (dev only) |
 | `KAFKA_ENABLED` | `false` | Enable Kafka event publishing |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker address |
-| `KAFKA_TOPIC_USER_REGISTERED` | `user.registered` | Topic for UserRegisteredEvent |
-| `KAFKA_TOPIC_USER_UPDATED` | `user.updated` | Topic for UserUpdatedEvent |
+| `KAFKA_TOPIC_IDENTITY_EVENTS` | `identity.events` | Topic for all identity events |
 | `OUTBOX_RELAY_FIXED_DELAY_MS` | `10000` | Delay between outbox relay runs (ms) |
 | `OUTBOX_RELAY_BATCH_SIZE` | `50` | Maximum events per relay run |
 
@@ -224,6 +230,7 @@ Tests use Testcontainers to spin up an isolated PostgreSQL instance. No local da
 | AuthLoginIntegrationTest | Integration | End-to-end login via HTTP |
 | AuthRefreshLogoutIntegrationTest | Integration | End-to-end refresh and logout via HTTP |
 | EmailVerificationIntegrationTest | Integration | End-to-end email verification flow |
+| AdminUserEventPublishingIntegrationTest | Integration | Event publishing on deactivation and reactivation |
 | DatabaseMigrationTests | Integration | Verifies all Flyway migrations apply cleanly |
 | KafkaUserEventPublisherTest | Unit | Kafka publisher behavior (enabled/disabled) |
 
