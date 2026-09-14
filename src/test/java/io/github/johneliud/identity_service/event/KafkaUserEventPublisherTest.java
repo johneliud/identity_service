@@ -1,14 +1,19 @@
 package io.github.johneliud.identity_service.event;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.kafka.support.SendResult;
+
+import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,9 +28,11 @@ class KafkaUserEventPublisherTest {
     @Mock
     private KafkaTemplate<String, Object> kafkaTemplate;
 
+    private static final UUID TEST_USER_ID = UUID.randomUUID();
+
     private EventEnvelope<UserRegisteredEvent> createTestEnvelope() {
         UserRegisteredEvent event = new UserRegisteredEvent(
-                UUID.randomUUID(),
+                TEST_USER_ID,
                 "test@example.com",
                 "Test",
                 "User",
@@ -37,45 +44,52 @@ class KafkaUserEventPublisherTest {
     }
 
     @Test
-    @DisplayName("Publishes envelope to Kafka when kafkaEnabled is true")
-    void publish_whenEnabled_sendsEnvelope() {
+    @DisplayName("Returns true and sends to Kafka when broker acknowledges")
+    void publish_whenEnabled_returnsTrue() {
         KafkaUserEventPublisher publisher = new KafkaUserEventPublisher(
                 kafkaTemplate, "identity.events", true
         );
         EventEnvelope<UserRegisteredEvent> envelope = createTestEnvelope();
 
-        publisher.publish(envelope);
+        when(kafkaTemplate.send(eq("identity.events"), eq(TEST_USER_ID.toString()), eq(envelope)))
+                .thenReturn(CompletableFuture.completedFuture(null));
 
-        verify(kafkaTemplate).send(eq("identity.events"), eq(envelope.eventId().toString()), eq(envelope));
+        boolean result = publisher.publish(envelope);
+
+        assertThat(result).isTrue();
+        verify(kafkaTemplate).send(eq("identity.events"), eq(TEST_USER_ID.toString()), eq(envelope));
     }
 
     @Test
-    @DisplayName("Does not publish to Kafka when kafkaEnabled is false")
-    void publish_whenDisabled_doesNotSend() {
+    @DisplayName("Returns false when Kafka is disabled")
+    void publish_whenDisabled_returnsFalse() {
         KafkaUserEventPublisher publisher = new KafkaUserEventPublisher(
                 kafkaTemplate, "identity.events", false
         );
         EventEnvelope<UserRegisteredEvent> envelope = createTestEnvelope();
 
-        publisher.publish(envelope);
+        boolean result = publisher.publish(envelope);
 
+        assertThat(result).isFalse();
         verify(kafkaTemplate, never()).send(any(), any(), any());
     }
 
     @Test
-    @DisplayName("Does not fail or throw exception when KafkaTemplate is null")
-    void publish_whenTemplateNull_doesNotThrow() {
+    @DisplayName("Returns false when KafkaTemplate is null")
+    void publish_whenTemplateNull_returnsFalse() {
         KafkaUserEventPublisher publisher = new KafkaUserEventPublisher(
                 null, "identity.events", true
         );
         EventEnvelope<UserRegisteredEvent> envelope = createTestEnvelope();
 
-        publisher.publish(envelope);
+        boolean result = publisher.publish(envelope);
+
+        assertThat(result).isFalse();
     }
 
     @Test
-    @DisplayName("Catches Kafka exceptions gracefully without crashing caller")
-    void publish_whenKafkaFails_catchesException() {
+    @DisplayName("Returns false when broker send throws")
+    void publish_whenKafkaFails_returnsFalse() {
         KafkaUserEventPublisher publisher = new KafkaUserEventPublisher(
                 kafkaTemplate, "identity.events", true
         );
@@ -84,6 +98,41 @@ class KafkaUserEventPublisherTest {
         doThrow(new RuntimeException("Kafka broker unreachable"))
                 .when(kafkaTemplate).send(any(), any(), any());
 
+        boolean result = publisher.publish(envelope);
+
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    @DisplayName("Returns false when broker future completes exceptionally")
+    void publish_whenBrokerRejects_returnsFalse() {
+        KafkaUserEventPublisher publisher = new KafkaUserEventPublisher(
+                kafkaTemplate, "identity.events", true
+        );
+        EventEnvelope<UserRegisteredEvent> envelope = createTestEnvelope();
+
+        CompletableFuture<SendResult<String, Object>> failedFuture = new CompletableFuture<>();
+        failedFuture.completeExceptionally(new RuntimeException("Topic not found"));
+        when(kafkaTemplate.send(any(), any(), any())).thenReturn(failedFuture);
+
+        boolean result = publisher.publish(envelope);
+
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    @DisplayName("Uses userId from payload as partition key")
+    void publish_usesUserIdAsKey() {
+        KafkaUserEventPublisher publisher = new KafkaUserEventPublisher(
+                kafkaTemplate, "identity.events", true
+        );
+        EventEnvelope<UserRegisteredEvent> envelope = createTestEnvelope();
+
+        when(kafkaTemplate.send(eq("identity.events"), eq(TEST_USER_ID.toString()), eq(envelope)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
         publisher.publish(envelope);
+
+        verify(kafkaTemplate).send(eq("identity.events"), eq(TEST_USER_ID.toString()), eq(envelope));
     }
 }
