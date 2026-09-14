@@ -1,0 +1,52 @@
+package io.github.johneliud.identity_service.service;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.stereotype.Service;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Service
+@ConditionalOnProperty(name = "identity.email.enabled", havingValue = "true")
+@Slf4j
+public class SmtpEmailService implements EmailService {
+
+    private final JavaMailSender mailSender;
+    private final String fromAddress;
+    private final String frontendBaseUrl;
+
+    public SmtpEmailService(
+            JavaMailSender mailSender,
+            @Value("${identity.email.from-address:noreply@localhost}") String fromAddress,
+            @Value("${identity.email.frontend-base-url:http://localhost:4200}") String frontendBaseUrl) {
+        this.mailSender = mailSender;
+        this.fromAddress = fromAddress;
+        this.frontendBaseUrl = frontendBaseUrl;
+    }
+
+    @Override
+    public void sendVerificationEmail(String to, String verificationToken) {
+        String verifyUrl = frontendBaseUrl + "/verify-email?token=" + verificationToken;
+
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromAddress);
+        message.setTo(to);
+        message.setSubject("Verify your email address");
+        message.setText(
+                "Welcome to Safari Adventures!\n\n"
+                + "Please verify your email address by clicking the link below:\n\n"
+                + verifyUrl + "\n\n"
+                + "This link will expire in 1 hour.\n\n"
+                + "If you did not create an account, you can safely ignore this email.");
+
+        try {
+            mailSender.send(message);
+            log.info("Verification email sent to '{}'", to);
+        } catch (Exception e) {
+            log.error("Failed to send verification email to '{}': {}", to, e.getMessage());
+            throw new RuntimeException("Failed to send verification email", e);
+        }
+    }
+}
