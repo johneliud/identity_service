@@ -17,7 +17,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -103,7 +102,7 @@ class EmailVerificationIntegrationTest {
         mockMvc.perform(get("/auth/verify-email")
                         .header("X-API-Version", "1")
                         .param("token", verificationToken))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         // Verify user is now ACTIVE and email_verified = true
         User user = userRepository.findByEmail(email).orElseThrow();
@@ -133,7 +132,7 @@ class EmailVerificationIntegrationTest {
         mockMvc.perform(get("/auth/verify-email")
                         .header("X-API-Version", "1")
                         .param("token", verificationToken))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         // Second verification with same token fails
         mockMvc.perform(get("/auth/verify-email")
@@ -163,7 +162,7 @@ class EmailVerificationIntegrationTest {
         mockMvc.perform(get("/auth/verify-email")
                         .header("X-API-Version", "1")
                         .param("token", verificationToken))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         // Now login should succeed
         LoginRequest loginRequest = LoginRequest.builder()

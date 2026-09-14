@@ -61,3 +61,47 @@ spring:
                 - Method=GET
               filters:
                 - name: RateLimitGatewayFilter
+
+            - id: identity-change-role
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/users/*/roles
+                - Method=PATCH
+              filters:
+                - name: AuthenticationFilter
+                - name: AuthorizationFilter
+                  args:
+                    requiredRole: ADMIN
+
+            - id: identity-admin-list-users
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/admin/users
+                - Method=GET
+              filters:
+                - name: AuthenticationFilter
+                - name: AuthorizationFilter
+                  args:
+                    requiredRole: ADMIN
+
+            - id: identity-admin-get-user
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/admin/users/**
+                - Method=GET
+              filters:
+                - name: AuthenticationFilter
+                - name: AuthorizationFilter
+                  args:
+                    requiredRole: ADMIN
+
+            - id: identity-admin-update-status
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/admin/users/*/status
+                - Method=PATCH
+              filters:
+                - name: AuthenticationFilter
+                - name: AuthorizationFilter
+                  args:
+                    requiredRole: ADMIN

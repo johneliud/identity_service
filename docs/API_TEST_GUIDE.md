@@ -16,6 +16,10 @@ All requests go through the API Gateway on `http://localhost:8080`. If you are t
 6. [Forgot Password](#6-forgot-password)
 7. [Reset Password](#7-reset-password)
 8. [Verify Email](#8-verify-email)
+9. [Change User Role](#9-change-user-role)
+10. [List Users (Admin)](#10-list-users-admin)
+11. [Get User Detail (Admin)](#11-get-user-detail-admin)
+12. [Update User Status (Admin)](#12-update-user-status-admin)
 
 ---
 
@@ -447,6 +451,245 @@ No body. The user's status changes from `PENDING` to `ACTIVE` and `emailVerified
 | 400 Bad Request | Invalid or already used verification token |
 | 400 Bad Request | Verification token has expired |
 | 403 Forbidden | Account has been deactivated |
+
+---
+
+## 9. Change User Role
+
+```
+PATCH /users/{id}/roles
+```
+
+Adds or removes a role from a user. Requires ADMIN role. This endpoint is protected at two levels:
+- **Gateway**: The `AuthorizationFilter` checks that the caller has the `ADMIN` role before the request reaches the identity service.
+- **Identity service**: `@PreAuthorize("hasRole('ADMIN')")` on the service method provides defense in depth.
+
+You must first login as an ADMIN user (see [2. Login](#2-login)) to obtain an access token.
+
+### curl
+
+```bash
+curl -X PATCH http://localhost:8080/users/USER_UUID_HERE/roles \
+  -H "Content-Type: application/json" \
+  -H "X-API-Version: 1" \
+  -H "Authorization: Bearer <admin-access-token>" \
+  -d '{
+    "roleName": "TRAVEL_MANAGER",
+    "action": "ADD"
+  }'
+```
+
+### Postman / Insomnia
+
+1. Method: `PATCH`
+2. URL: `http://localhost:8080/users/{id}/roles`
+3. Headers:
+   - `Content-Type: application/json`
+   - `X-API-Version: 1`
+4. Auth tab: Select "Bearer Token" and paste the admin access token
+5. Body, raw, JSON:
+
+```json
+{
+  "roleName": "TRAVEL_MANAGER",
+  "action": "ADD"
+}
+```
+
+### Request Body
+
+| Field | Type | Required | Values |
+|---|---|---|---|
+| `roleName` | String | Yes | `ADMIN`, `TRAVEL_MANAGER`, `TRAVELER` |
+| `action` | String | Yes | `ADD`, `REMOVE` |
+
+### Success Response: 204 No Content
+
+No body.
+
+### Error Responses
+
+| Status | Condition |
+|---|---|
+| 400 Bad Request | Validation failure (invalid role name or action) |
+| 401 Unauthorized | Missing or invalid `Authorization` header |
+| 403 Forbidden | Caller does not have ADMIN role |
+| 404 Not Found | User not found |
+| 409 Conflict | User already has the role (for ADD) or does not have the role (for REMOVE) |
+
+---
+
+## 10. List Users (Admin)
+
+```
+GET /admin/users
+```
+
+Returns a paginated list of users. Supports filtering by status, role, and email. Requires ADMIN role.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `page` | int | `0` | Page number (0-indexed) |
+| `size` | int | `20` | Page size |
+| `status` | String | - | Filter by status: `ACTIVE`, `PENDING`, `DEACTIVATED` |
+| `role` | String | - | Filter by role name: `ADMIN`, `TRAVEL_MANAGER`, `TRAVELER` |
+| `email` | String | - | Filter by email (partial match, case-insensitive) |
+
+### curl
+
+```bash
+curl -X GET "http://localhost:8080/admin/users?page=0&size=10&status=ACTIVE" \
+  -H "X-API-Version: 1" \
+  -H "Authorization: Bearer <admin-access-token>"
+```
+
+### Postman / Insomnia
+
+1. Method: `GET`
+2. URL: `http://localhost:8080/admin/users?page=0&size=10`
+3. Headers:
+   - `X-API-Version: 1`
+   - `Authorization: Bearer <admin-access-token>`
+4. The admin access token is obtained from the login response.
+
+### Success Response: 200 OK
+
+```json
+{
+  "content": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "email": "user@example.com",
+      "firstName": "Test",
+      "lastName": "User",
+      "status": "ACTIVE",
+      "emailVerified": true,
+      "roles": ["TRAVELER"],
+      "createdAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "page": 0,
+  "size": 10,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+### Error Responses
+
+| Status | Condition |
+|---|---|
+| 401 Unauthorized | Missing or invalid `Authorization` header |
+| 403 Forbidden | Caller does not have ADMIN role |
+
+---
+
+## 11. Get User Detail (Admin)
+
+```
+GET /admin/users/{id}
+```
+
+Returns full user details (excluding password hash). Requires ADMIN role.
+
+### curl
+
+```bash
+curl -X GET http://localhost:8080/admin/users/USER_UUID_HERE \
+  -H "X-API-Version: 1" \
+  -H "Authorization: Bearer <admin-access-token>"
+```
+
+### Postman / Insomnia
+
+1. Method: `GET`
+2. URL: `http://localhost:8080/admin/users/{id}`
+3. Headers:
+   - `X-API-Version: 1`
+4. Auth tab: Select "Bearer Token" and paste the admin access token
+
+### Success Response: 200 OK
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "user@example.com",
+  "firstName": "Test",
+  "lastName": "User",
+  "status": "ACTIVE",
+  "emailVerified": true,
+  "roles": ["TRAVELER"],
+  "createdAt": "2026-01-01T00:00:00Z",
+  "updatedAt": "2026-01-01T00:00:00Z"
+}
+```
+
+### Error Responses
+
+| Status | Condition |
+|---|---|
+| 401 Unauthorized | Missing or invalid `Authorization` header |
+| 403 Forbidden | Caller does not have ADMIN role |
+| 404 Not Found | User not found |
+
+---
+
+## 12. Update User Status (Admin)
+
+```
+PATCH /admin/users/{id}/status
+```
+
+Activates or deactivates a user account. Requires ADMIN role. Emits `UserUpdatedEvent` with `changeType=USER_DEACTIVATED` or `USER_REACTIVATED`.
+
+### curl
+
+```bash
+curl -X PATCH http://localhost:8080/admin/users/USER_UUID_HERE/status \
+  -H "Content-Type: application/json" \
+  -H "X-API-Version: 1" \
+  -H "Authorization: Bearer <admin-access-token>" \
+  -d '{
+    "status": "DEACTIVATED"
+  }'
+```
+
+### Postman / Insomnia
+
+1. Method: `PATCH`
+2. URL: `http://localhost:8080/admin/users/{id}/status`
+3. Headers:
+   - `Content-Type: application/json`
+   - `X-API-Version: 1`
+4. Auth tab: Select "Bearer Token" and paste the admin access token
+5. Body, raw, JSON:
+
+```json
+{
+  "status": "DEACTIVATED"
+}
+```
+
+### Request Body
+
+| Field | Type | Required | Values |
+|---|---|---|---|
+| `status` | String | Yes | `ACTIVE`, `DEACTIVATED` |
+
+### Success Response: 204 No Content
+
+No body.
+
+### Error Responses
+
+| Status | Condition |
+|---|---|
+| 400 Bad Request | Invalid status value |
+| 401 Unauthorized | Missing or invalid `Authorization` header |
+| 403 Forbidden | Caller does not have ADMIN role |
+| 404 Not Found | User not found |
 
 ---
 
