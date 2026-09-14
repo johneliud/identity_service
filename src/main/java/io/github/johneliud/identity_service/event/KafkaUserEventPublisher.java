@@ -27,20 +27,35 @@ public class KafkaUserEventPublisher implements UserEventPublisher {
     }
 
     @Override
-    public void publish(EventEnvelope<? extends Serializable> envelope) {
+    public boolean publish(EventEnvelope<? extends Serializable> envelope) {
         if (!kafkaEnabled || kafkaTemplate == null) {
             log.info("Kafka publishing disabled or KafkaTemplate unavailable. Event recorded: eventType={} eventId={}",
                     envelope.eventType(), envelope.eventId());
-            return;
+            return false;
         }
 
         try {
-            String key = envelope.eventId().toString();
-            log.info("Publishing event {} (id={}) to topic: {}", envelope.eventType(), key, topic);
-            kafkaTemplate.send(topic, key, envelope);
+            String key = extractUserId(envelope);
+            log.info("Publishing event {} (id={}, userId={}) to topic: {}",
+                    envelope.eventType(), envelope.eventId(), key, topic);
+            kafkaTemplate.send(topic, key, envelope).join();
+            return true;
         } catch (Exception ex) {
             log.error("Failed to publish event {} (id={}) to Kafka",
                     envelope.eventType(), envelope.eventId(), ex);
+            return false;
+        }
+    }
+
+    private String extractUserId(EventEnvelope<? extends Serializable> envelope) {
+        try {
+            var payload = envelope.payload();
+            var method = payload.getClass().getMethod("userId");
+            Object userId = method.invoke(payload);
+            return userId != null ? userId.toString() : envelope.eventId().toString();
+        } catch (Exception e) {
+            log.warn("Could not extract userId from payload, falling back to eventId");
+            return envelope.eventId().toString();
         }
     }
 }
