@@ -25,11 +25,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import io.github.johneliud.identity_service.config.JwtTokenProvider;
+import io.github.johneliud.identity_service.dto.ChangePasswordRequest;
+import io.github.johneliud.identity_service.dto.ForgotPasswordRequest;
 import io.github.johneliud.identity_service.dto.LoginRequest;
 import io.github.johneliud.identity_service.dto.LoginResponse;
 import io.github.johneliud.identity_service.dto.RefreshTokenRequest;
 import io.github.johneliud.identity_service.dto.RefreshTokenResponse;
 import io.github.johneliud.identity_service.dto.RegisterRequest;
+import io.github.johneliud.identity_service.dto.ResetPasswordRequest;
 import io.github.johneliud.identity_service.dto.UserResponse;
 import io.github.johneliud.identity_service.event.OutboxEventPublisher;
 import io.github.johneliud.identity_service.event.UserRegisteredEvent;
@@ -37,9 +40,11 @@ import io.github.johneliud.identity_service.exception.AccountDeactivatedExceptio
 import io.github.johneliud.identity_service.exception.AccountNotVerifiedException;
 import io.github.johneliud.identity_service.exception.InvalidCredentialsException;
 import io.github.johneliud.identity_service.exception.InvalidRefreshTokenException;
+import io.github.johneliud.identity_service.exception.InvalidResetTokenException;
 import io.github.johneliud.identity_service.exception.RoleNotFoundException;
 import io.github.johneliud.identity_service.exception.UserAlreadyExistsException;
 import io.github.johneliud.identity_service.model.RefreshToken;
+import io.github.johneliud.identity_service.model.ResetToken;
 import io.github.johneliud.identity_service.model.Role;
 import io.github.johneliud.identity_service.model.User;
 import io.github.johneliud.identity_service.model.UserStatus;
@@ -68,20 +73,24 @@ class AuthServiceTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Mock
+    private io.github.johneliud.identity_service.repository.ResetTokenRepository resetTokenRepository;
+
     private AuthService authServiceWithVerification;
     private AuthService authServiceWithoutVerification;
     private Role travelerRole;
     private static final String USER_PASSWORD = UUID.randomUUID() + "Aa1!";
+    private static final String NEW_PASSWORD = UUID.randomUUID() + "Bb2!";
 
     @BeforeEach
     void setUp() {
         authServiceWithVerification = new AuthService(
                 userRepository, roleRepository, passwordEncoder, outboxEventPublisher,
-                jwtTokenProvider, refreshTokenRepository, true
+                jwtTokenProvider, refreshTokenRepository, resetTokenRepository, true
         );
         authServiceWithoutVerification = new AuthService(
                 userRepository, roleRepository, passwordEncoder, outboxEventPublisher,
-                jwtTokenProvider, refreshTokenRepository, false
+                jwtTokenProvider, refreshTokenRepository, resetTokenRepository, false
         );
 
         travelerRole = Role.builder()
@@ -536,5 +545,221 @@ class AuthServiceTest {
         authServiceWithVerification.logout(request);
 
         verify(refreshTokenRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Change password succeeds with correct current password")
+    void changePassword_success() {
+        User user = createActiveUser();
+        String userId = user.getId().toString();
+
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(USER_PASSWORD, user.getPasswordHash())).thenReturn(true);
+        when(passwordEncoder.matches(NEW_PASSWORD, user.getPasswordHash())).thenReturn(false);
+        when(passwordEncoder.encode(NEW_PASSWORD)).thenReturn("$2a$12$newHashedPassword");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword(USER_PASSWORD)
+                .newPassword(NEW_PASSWORD)
+                .build();
+
+        authServiceWithVerification.changePassword(request, userId);
+
+        verify(userRepository).save(any(User.class));
+        verify(outboxEventPublisher).publishUserUpdated(any());
+    }
+
+    @Test
+    @DisplayName("Change password fails with wrong current password")
+    void changePassword_wrongCurrentPassword_throwsInvalidCredentials() {
+        User user = createActiveUser();
+        String userId = user.getId().toString();
+
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(USER_PASSWORD, user.getPasswordHash())).thenReturn(false);
+
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword(USER_PASSWORD)
+                .newPassword(NEW_PASSWORD)
+                .build();
+
+        assertThatThrownBy(() -> authServiceWithVerification.changePassword(request, userId))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Current password is incorrect");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Change password fails when new password same as current")
+    void changePassword_samePassword_throwsInvalidCredentials() {
+        User user = createActiveUser();
+        String userId = user.getId().toString();
+
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(USER_PASSWORD, user.getPasswordHash())).thenReturn(true);
+
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword(USER_PASSWORD)
+                .newPassword(USER_PASSWORD)
+                .build();
+
+        assertThatThrownBy(() -> authServiceWithVerification.changePassword(request, userId))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("New password must be different from current password");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Change password fails for deactivated account")
+    void changePassword_deactivatedAccount_throwsAccountDeactivated() {
+        User user = createActiveUser();
+        user.setStatus(UserStatus.DEACTIVATED);
+        String userId = user.getId().toString();
+
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword(USER_PASSWORD)
+                .newPassword(NEW_PASSWORD)
+                .build();
+
+        assertThatThrownBy(() -> authServiceWithVerification.changePassword(request, userId))
+                .isInstanceOf(AccountDeactivatedException.class);
+
+        verify(passwordEncoder, never()).matches(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Forgot password generates reset token for existing user")
+    void forgotPassword_success() {
+        User user = createActiveUser();
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(jwtTokenProvider.generateRefreshToken()).thenReturn("raw-reset-token");
+        when(jwtTokenProvider.getRefreshTokenExpirationMs()).thenReturn(604800000L);
+        when(resetTokenRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ForgotPasswordRequest request = ForgotPasswordRequest.builder()
+                .email("user@example.com")
+                .build();
+
+        authServiceWithVerification.forgotPassword(request);
+
+        verify(resetTokenRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("Forgot password does not fail for non-existent email (prevents enumeration)")
+    void forgotPassword_nonExistentEmail_doesNotThrow() {
+        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+
+        ForgotPasswordRequest request = ForgotPasswordRequest.builder()
+                .email("nonexistent@example.com")
+                .build();
+
+        authServiceWithVerification.forgotPassword(request);
+
+        verify(resetTokenRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Reset password succeeds with valid token")
+    void resetPassword_success() {
+        User user = createActiveUser();
+        ResetToken resetToken = ResetToken.builder()
+                .id(UUID.randomUUID())
+                .tokenHash("hashed-reset-token")
+                .user(user)
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .used(false)
+                .build();
+
+        when(resetTokenRepository.findByTokenHashAndUsedFalse(anyString()))
+                .thenReturn(Optional.of(resetToken));
+        when(passwordEncoder.encode(NEW_PASSWORD)).thenReturn("$2a$12$newHashedPassword");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(resetTokenRepository.save(any(ResetToken.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ResetPasswordRequest request = ResetPasswordRequest.builder()
+                .token("raw-reset-token")
+                .newPassword(NEW_PASSWORD)
+                .build();
+
+        authServiceWithVerification.resetPassword(request);
+
+        assertThat(resetToken.getUsed()).isTrue();
+        verify(userRepository).save(any(User.class));
+        verify(outboxEventPublisher).publishUserUpdated(any());
+    }
+
+    @Test
+    @DisplayName("Reset password fails with invalid token")
+    void resetPassword_invalidToken_throwsInvalidResetToken() {
+        when(resetTokenRepository.findByTokenHashAndUsedFalse(anyString()))
+                .thenReturn(Optional.empty());
+
+        ResetPasswordRequest request = ResetPasswordRequest.builder()
+                .token("invalid-token")
+                .newPassword(NEW_PASSWORD)
+                .build();
+
+        assertThatThrownBy(() -> authServiceWithVerification.resetPassword(request))
+                .isInstanceOf(InvalidResetTokenException.class)
+                .hasMessage("Invalid or already used reset token");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Reset password fails with expired token")
+    void resetPassword_expiredToken_throwsInvalidResetToken() {
+        User user = createActiveUser();
+        ResetToken expiredToken = ResetToken.builder()
+                .id(UUID.randomUUID())
+                .tokenHash("hashed-expired-token")
+                .user(user)
+                .expiresAt(Instant.now().minusSeconds(3600))
+                .used(false)
+                .build();
+
+        when(resetTokenRepository.findByTokenHashAndUsedFalse(anyString()))
+                .thenReturn(Optional.of(expiredToken));
+
+        ResetPasswordRequest request = ResetPasswordRequest.builder()
+                .token("expired-token")
+                .newPassword(NEW_PASSWORD)
+                .build();
+
+        assertThatThrownBy(() -> authServiceWithVerification.resetPassword(request))
+                .isInstanceOf(InvalidResetTokenException.class)
+                .hasMessage("Reset token has expired");
+    }
+
+    @Test
+    @DisplayName("Reset password fails for deactivated account")
+    void resetPassword_deactivatedAccount_throwsAccountDeactivated() {
+        User user = createActiveUser();
+        user.setStatus(UserStatus.DEACTIVATED);
+        ResetToken resetToken = ResetToken.builder()
+                .id(UUID.randomUUID())
+                .tokenHash("hashed-token")
+                .user(user)
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .used(false)
+                .build();
+
+        when(resetTokenRepository.findByTokenHashAndUsedFalse(anyString()))
+                .thenReturn(Optional.of(resetToken));
+
+        ResetPasswordRequest request = ResetPasswordRequest.builder()
+                .token("raw-token")
+                .newPassword(NEW_PASSWORD)
+                .build();
+
+        assertThatThrownBy(() -> authServiceWithVerification.resetPassword(request))
+                .isInstanceOf(AccountDeactivatedException.class);
     }
 }
