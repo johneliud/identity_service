@@ -34,19 +34,25 @@ public class RegistrationService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final OutboxEventPublisher outboxEventPublisher;
+    private final EmailVerificationService emailVerificationService;
     private final boolean requireEmailVerification;
+    private final boolean includeVerificationTokenInResponse;
 
     public RegistrationService(
             UserRepository userRepository,
             RoleRepository roleRepository,
             PasswordEncoder passwordEncoder,
             OutboxEventPublisher outboxEventPublisher,
-            @Value("${identity.registration.require-email-verification:true}") boolean requireEmailVerification) {
+            EmailVerificationService emailVerificationService,
+            @Value("${identity.registration.require-email-verification:true}") boolean requireEmailVerification,
+            @Value("${identity.dev.include-verification-token-in-response:false}") boolean includeVerificationTokenInResponse) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.outboxEventPublisher = outboxEventPublisher;
+        this.emailVerificationService = emailVerificationService;
         this.requireEmailVerification = requireEmailVerification;
+        this.includeVerificationTokenInResponse = includeVerificationTokenInResponse;
     }
 
     @Transactional
@@ -102,6 +108,14 @@ public class RegistrationService {
 
         outboxEventPublisher.publishUserRegistered(event);
 
+        String verificationToken = null;
+        if (requireEmailVerification) {
+            String token = emailVerificationService.generateToken(savedUser);
+            if (includeVerificationTokenInResponse) {
+                verificationToken = token;
+            }
+        }
+
         return UserResponse.builder()
                 .id(savedUser.getId())
                 .email(savedUser.getEmail())
@@ -110,6 +124,7 @@ public class RegistrationService {
                 .status(savedUser.getStatus())
                 .emailVerified(savedUser.getEmailVerified())
                 .roles(roleNames)
+                .verificationToken(verificationToken)
                 .createdAt(savedUser.getCreatedAt())
                 .updatedAt(savedUser.getUpdatedAt())
                 .build();

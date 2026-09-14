@@ -90,6 +90,7 @@ class AuthRegistrationIntegrationTest {
                 .andExpect(jsonPath("$.status", is("PENDING")))
                 .andExpect(jsonPath("$.emailVerified", is(false)))
                 .andExpect(jsonPath("$.roles", hasItem("TRAVELER")))
+                .andExpect(jsonPath("$.verificationToken", notNullValue()))
                 .andExpect(jsonPath("$.password").doesNotExist())
                 .andExpect(jsonPath("$.passwordHash").doesNotExist());
 

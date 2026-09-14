@@ -21,6 +21,18 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
 
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
@@ -37,6 +49,14 @@ jwt:
 identity:
   registration:
     require-email-verification: ${REQUIRE_EMAIL_VERIFICATION:true}
+  email-verification:
+    token-expiration-ms: ${EMAIL_VERIFICATION_TOKEN_EXPIRATION_MS:3600000}
+  email:
+    enabled: ${EMAIL_ENABLED:false}
+    from-address: ${EMAIL_FROM_ADDRESS:noreply@localhost}
+    frontend-base-url: ${EMAIL_FRONTEND_BASE_URL:http://localhost:4200}
+  dev:
+    include-verification-token-in-response: ${DEV_INCLUDE_VERIFICATION_TOKEN_IN_RESPONSE:true}
   kafka:
     enabled: ${KAFKA_ENABLED:false}
     topics:

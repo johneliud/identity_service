@@ -22,6 +22,7 @@ public class UserResponse {
     private UserStatus status;
     private Boolean emailVerified;
     private Set<String> roles;
+    private String verificationToken;
     private Instant createdAt;
     private Instant updatedAt;
 }
