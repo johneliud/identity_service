@@ -271,7 +271,9 @@ No body.
 POST /auth/change-password
 ```
 
-Changes the password for an authenticated user. Requires the `X-User-Id` header (injected by the gateway's authentication filter).
+Changes the password for an authenticated user. This endpoint requires a valid JWT access token in the `Authorization` header. The gateway validates the token and automatically injects the `X-User-Id` header before forwarding to the identity service.
+
+You must first login (see [2. Login](#2-login)) to obtain an access token.
 
 ### curl
 
@@ -279,7 +281,7 @@ Changes the password for an authenticated user. Requires the `X-User-Id` header 
 curl -X POST http://localhost:8080/auth/change-password \
   -H "Content-Type: application/json" \
   -H "X-API-Version: 1" \
-  -H "X-User-Id: 550e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer <your-access-token>" \
   -d '{
     "currentPassword": "Str0ng!Pass1",
     "newPassword": "N3w!Str0ngPass"
@@ -293,8 +295,9 @@ curl -X POST http://localhost:8080/auth/change-password \
 3. Headers:
    - `Content-Type: application/json`
    - `X-API-Version: 1`
-   - `X-User-Id: 550e8400-e29b-41d4-a716-446655440000` (your user UUID)
-4. Body, raw, JSON:
+   - `Authorization: Bearer <your-access-token>`
+4. The access token is obtained from the login response
+5. Body, raw, JSON:
 
 ```json
 {
@@ -312,6 +315,7 @@ No body.
 | Status | Condition |
 |---|---|
 | 400 Bad Request | Validation failure |
+| 401 Unauthorized | Missing or invalid `Authorization` header |
 | 401 Unauthorized | Current password is incorrect |
 | 401 Unauthorized | New password must be different from current password |
 | 403 Forbidden | Account has been deactivated |
@@ -470,15 +474,21 @@ curl -s -X GET "http://localhost:8080/auth/verify-email?token=YOUR_TOKEN_HERE" \
   -w "\nHTTP Status: %{http_code}\n"
 
 # 4. Login
-curl -s -X POST http://localhost:8080/auth/login \
+TOKEN=$(curl -s -X POST http://localhost:8080/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
     "password": "Str0ng!Pass1"
-  }' | jq .
+  }' | jq -r '.accessToken')
 
 # 5. Use the access token for authenticated requests
-# The gateway injects X-User-Id and X-User-Roles headers for downstream services
+curl -s -X POST http://localhost:8080/auth/change-password \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "currentPassword": "Str0ng!Pass1",
+    "newPassword": "N3w!Str0ngPass"
+  }' | jq .
 ```
 
 ---
