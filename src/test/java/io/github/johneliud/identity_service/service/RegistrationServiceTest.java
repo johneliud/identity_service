@@ -46,6 +46,9 @@ class RegistrationServiceTest {
     @Mock
     private OutboxEventPublisher outboxEventPublisher;
 
+    @Mock
+    private EmailVerificationService emailVerificationService;
+
     private RegistrationService registrationServiceWithVerification;
     private RegistrationService registrationServiceWithoutVerification;
     private Role travelerRole;
@@ -54,10 +57,12 @@ class RegistrationServiceTest {
     @BeforeEach
     void setUp() {
         registrationServiceWithVerification = new RegistrationService(
-                userRepository, roleRepository, passwordEncoder, outboxEventPublisher, true
+                userRepository, roleRepository, passwordEncoder, outboxEventPublisher,
+                emailVerificationService, true, true
         );
         registrationServiceWithoutVerification = new RegistrationService(
-                userRepository, roleRepository, passwordEncoder, outboxEventPublisher, false
+                userRepository, roleRepository, passwordEncoder, outboxEventPublisher,
+                emailVerificationService, false, false
         );
 
         travelerRole = Role.builder()
@@ -93,6 +98,8 @@ class RegistrationServiceTest {
             return user;
         });
 
+        when(emailVerificationService.generateToken(any(User.class))).thenReturn("dev-verification-token-abc123");
+
         UserResponse response = registrationServiceWithVerification.register(request);
 
         assertThat(response).isNotNull();
@@ -103,6 +110,9 @@ class RegistrationServiceTest {
         assertThat(response.getStatus()).isEqualTo(UserStatus.PENDING);
         assertThat(response.getEmailVerified()).isFalse();
         assertThat(response.getRoles()).containsExactly("TRAVELER");
+        assertThat(response.getVerificationToken()).isEqualTo("dev-verification-token-abc123");
+
+        verify(emailVerificationService).generateToken(any(User.class));
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(userCaptor.capture());
@@ -143,6 +153,8 @@ class RegistrationServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(response.getEmailVerified()).isTrue();
+        assertThat(response.getVerificationToken()).isNull();
+        verify(emailVerificationService, never()).generateToken(any());
     }
 
     @Test
