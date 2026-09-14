@@ -53,3 +53,11 @@ spring:
               predicates:
                 - Path=/auth/reset-password
                 - Method=POST
+
+            - id: identity-verify-email
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/auth/verify-email
+                - Method=GET
+              filters:
+                - name: RateLimitGatewayFilter
