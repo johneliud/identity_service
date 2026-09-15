@@ -44,8 +44,8 @@ public class RegistrationService {
             PasswordEncoder passwordEncoder,
             OutboxEventPublisher outboxEventPublisher,
             EmailVerificationService emailVerificationService,
-            @Value("${identity.registration.require-email-verification:true}") boolean requireEmailVerification,
-            @Value("${identity.dev.include-verification-token-in-response:false}") boolean includeVerificationTokenInResponse) {
+            @Value("${identity.registration.require-email-verification}") boolean requireEmailVerification,
+            @Value("${identity.dev.include-verification-token-in-response}") boolean includeVerificationTokenInResponse) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;

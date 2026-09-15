@@ -33,7 +33,8 @@ public class SecurityConfig {
                                 "/auth/logout",
                                 "/auth/forgot-password",
                                 "/auth/reset-password",
-                                "/auth/verify-email"
+                                "/auth/verify-email",
+                                "/actuator/health"
                         ).permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(gatewayHeaderAuthenticationFilter(),

@@ -19,8 +19,8 @@ public class SmtpEmailService implements EmailService {
 
     public SmtpEmailService(
             JavaMailSender mailSender,
-            @Value("${identity.email.from-address:noreply@localhost}") String fromAddress,
-            @Value("${identity.email.frontend-base-url:http://localhost:4200}") String frontendBaseUrl) {
+            @Value("${identity.email.from-address}") String fromAddress,
+            @Value("${identity.email.frontend-base-url}") String frontendBaseUrl) {
         this.mailSender = mailSender;
         this.fromAddress = fromAddress;
         this.frontendBaseUrl = frontendBaseUrl;

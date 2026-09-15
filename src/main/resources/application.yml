@@ -6,8 +6,8 @@ spring:
       - optional:classpath:application-secrets.properties
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:identity_db}}
-    username: ${SPRING_DATASOURCE_USERNAME:${DB_USER:postgres}}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DB_USER}}
     password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD}}
     driver-class-name: org.postgresql.Driver
 
@@ -22,49 +22,55 @@ spring:
     baseline-on-migrate: false
 
   mail:
-    host: ${MAIL_HOST:localhost}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
-          auth: ${MAIL_SMTP_AUTH:true}
+          auth: ${MAIL_SMTP_AUTH}
           starttls:
-            enable: ${MAIL_SMTP_STARTTLS:true}
+            enable: ${MAIL_SMTP_STARTTLS}
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 server:
-  port: ${SERVER_PORT:8081}
-  url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+  port: ${SERVER_PORT}
+  url: ${IDENTITY_SERVICE_URL}
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION:86400000}
-  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:900000}
-  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+  expiration: ${JWT_EXPIRATION}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION}
 
 identity:
   registration:
-    require-email-verification: ${REQUIRE_EMAIL_VERIFICATION:true}
+    require-email-verification: ${REQUIRE_EMAIL_VERIFICATION}
   email-verification:
-    token-expiration-ms: ${EMAIL_VERIFICATION_TOKEN_EXPIRATION_MS:3600000}
+    token-expiration-ms: ${EMAIL_VERIFICATION_TOKEN_EXPIRATION_MS}
   email:
-    enabled: ${EMAIL_ENABLED:false}
-    from-address: ${EMAIL_FROM_ADDRESS:noreply@localhost}
-    frontend-base-url: ${EMAIL_FRONTEND_BASE_URL:http://localhost:4200}
+    enabled: ${EMAIL_ENABLED}
+    from-address: ${EMAIL_FROM_ADDRESS}
+    frontend-base-url: ${EMAIL_FRONTEND_BASE_URL}
   dev:
-    include-verification-token-in-response: ${DEV_INCLUDE_VERIFICATION_TOKEN_IN_RESPONSE:true}
+    include-verification-token-in-response: ${DEV_INCLUDE_VERIFICATION_TOKEN_IN_RESPONSE}
   kafka:
-    enabled: ${KAFKA_ENABLED:false}
+    enabled: ${KAFKA_ENABLED}
     topics:
-      identity-events: ${KAFKA_TOPIC_IDENTITY_EVENTS:identity.events}
+      identity-events: ${KAFKA_TOPIC_IDENTITY_EVENTS}
   outbox:
     relay:
-      fixed-delay-ms: ${OUTBOX_RELAY_FIXED_DELAY_MS:10000}
-      batch-size: ${OUTBOX_RELAY_BATCH_SIZE:50}
+      fixed-delay-ms: ${OUTBOX_RELAY_FIXED_DELAY_MS}
+      batch-size: ${OUTBOX_RELAY_BATCH_SIZE}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
 
 logging:
   level:

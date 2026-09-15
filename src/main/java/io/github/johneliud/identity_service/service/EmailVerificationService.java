@@ -32,7 +32,7 @@ public class EmailVerificationService {
             OutboxEventPublisher outboxEventPublisher,
             TokenHashUtil tokenHashUtil,
             EmailService emailService,
-            @Value("${identity.email-verification.token-expiration-ms:3600000}") long verificationTokenExpirationMs) {
+            @Value("${identity.email-verification.token-expiration-ms}") long verificationTokenExpirationMs) {
         this.verificationTokenRepository = verificationTokenRepository;
         this.userRepository = userRepository;
         this.outboxEventPublisher = outboxEventPublisher;

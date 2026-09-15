@@ -28,14 +28,14 @@ public class OutboxEventRelayService {
             OutboxEventRepository outboxEventRepository,
             UserEventPublisher userEventPublisher,
             JsonMapper objectMapper,
-            @Value("${identity.outbox.relay.batch-size:50}") int batchSize) {
+            @Value("${identity.outbox.relay.batch-size}") int batchSize) {
         this.outboxEventRepository = outboxEventRepository;
         this.userEventPublisher = userEventPublisher;
         this.objectMapper = objectMapper;
         this.batchSize = batchSize;
     }
 
-    @Scheduled(fixedDelayString = "${identity.outbox.relay.fixed-delay-ms:10000}")
+    @Scheduled(fixedDelayString = "${identity.outbox.relay.fixed-delay-ms}")
     @Transactional
     public void relayPendingEvents() {
         List<OutboxEvent> pending = outboxEventRepository

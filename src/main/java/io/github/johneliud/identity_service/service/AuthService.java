@@ -31,7 +31,7 @@ public class AuthService {
             JwtTokenProvider jwtTokenProvider,
             RefreshTokenRepository refreshTokenRepository,
             ResetTokenRepository resetTokenRepository,
-            @Value("${identity.registration.require-email-verification:true}") boolean requireEmailVerification) {
+            @Value("${identity.registration.require-email-verification}") boolean requireEmailVerification) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;

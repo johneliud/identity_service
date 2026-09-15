@@ -19,8 +19,8 @@ public class KafkaUserEventPublisher implements UserEventPublisher {
 
     public KafkaUserEventPublisher(
             @Autowired(required = false) KafkaTemplate<String, Object> kafkaTemplate,
-            @Value("${identity.kafka.topics.identity-events:identity.events}") String topic,
-            @Value("${identity.kafka.enabled:false}") boolean kafkaEnabled) {
+            @Value("${identity.kafka.topics.identity-events}") String topic,
+            @Value("${identity.kafka.enabled}") boolean kafkaEnabled) {
         this.kafkaTemplate = kafkaTemplate;
         this.topic = topic;
         this.kafkaEnabled = kafkaEnabled;
