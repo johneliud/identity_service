@@ -4,14 +4,19 @@ spring:
       server:
         webflux:
           routes:
+            - id: identity-health
+              uri: ${IDENTITY_SERVICE_URL}
+              predicates:
+                - Path=/actuator/health
+
             - id: identity-register
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/auth/register
                 - Method=POST
 
             - id: identity-login
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/auth/login
                 - Method=POST
@@ -19,7 +24,7 @@ spring:
                 - name: RateLimitGatewayFilter
 
             - id: identity-refresh
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/auth/refresh
                 - Method=POST
@@ -27,13 +32,13 @@ spring:
                 - name: RateLimitGatewayFilter
 
             - id: identity-logout
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/auth/logout
                 - Method=POST
 
             - id: identity-change-password
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/auth/change-password
                 - Method=POST
@@ -41,7 +46,7 @@ spring:
                 - name: AuthenticationFilter
 
             - id: identity-forgot-password
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/auth/forgot-password
                 - Method=POST
@@ -49,13 +54,13 @@ spring:
                 - name: RateLimitGatewayFilter
 
             - id: identity-reset-password
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/auth/reset-password
                 - Method=POST
 
             - id: identity-verify-email
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/auth/verify-email
                 - Method=GET
@@ -63,7 +68,7 @@ spring:
                 - name: RateLimitGatewayFilter
 
             - id: identity-change-role
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/users/*/roles
                 - Method=PATCH
@@ -74,7 +79,7 @@ spring:
                     requiredRole: ADMIN
 
             - id: identity-admin-list-users
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/admin/users
                 - Method=GET
@@ -85,7 +90,7 @@ spring:
                     requiredRole: ADMIN
 
             - id: identity-admin-get-user
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/admin/users/**
                 - Method=GET
@@ -96,7 +101,7 @@ spring:
                     requiredRole: ADMIN
 
             - id: identity-admin-update-status
-              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/admin/users/*/status
                 - Method=PATCH
