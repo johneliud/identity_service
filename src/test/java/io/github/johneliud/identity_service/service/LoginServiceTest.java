@@ -96,7 +96,8 @@ class LoginServiceTest {
 
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches(USER_PASSWORD, user.getPasswordHash())).thenReturn(true);
-        when(jwtTokenProvider.generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any())).thenReturn("access-token-123");
+        when(jwtTokenProvider.generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any(),
+                anyString(), any(), any())).thenReturn("access-token-123");
         when(jwtTokenProvider.generateRefreshToken()).thenReturn("refresh-token-raw");
         when(tokenHashUtil.hashToken("refresh-token-raw")).thenReturn("hashed-refresh-token");
         when(jwtTokenProvider.getRefreshTokenExpirationMs()).thenReturn(604800000L);
@@ -136,7 +137,8 @@ class LoginServiceTest {
                 .isInstanceOf(InvalidCredentialsException.class)
                 .hasMessage("Invalid email or password");
 
-        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any());
+        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any(),
+                any(), any(), any());
         verify(refreshTokenRepository, never()).save(any());
     }
 
@@ -155,7 +157,8 @@ class LoginServiceTest {
                 .hasMessage("Invalid email or password");
 
         verify(passwordEncoder, never()).matches(anyString(), anyString());
-        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any());
+        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any(),
+                any(), any(), any());
         verify(refreshTokenRepository, never()).save(any());
     }
 
@@ -176,7 +179,8 @@ class LoginServiceTest {
                 .hasMessage("Account has been deactivated");
 
         verify(passwordEncoder, never()).matches(anyString(), anyString());
-        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any());
+        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any(),
+                any(), any(), any());
         verify(refreshTokenRepository, never()).save(any());
     }
 
@@ -198,7 +202,8 @@ class LoginServiceTest {
                 .hasMessage("Email address has not been verified");
 
         verify(passwordEncoder, never()).matches(anyString(), anyString());
-        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any());
+        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any(),
+                any(), any(), any());
         verify(refreshTokenRepository, never()).save(any());
     }
 
@@ -213,7 +218,8 @@ class LoginServiceTest {
 
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches(USER_PASSWORD, user.getPasswordHash())).thenReturn(true);
-        when(jwtTokenProvider.generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any())).thenReturn("token");
+        when(jwtTokenProvider.generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any(),
+                anyString(), any(), any())).thenReturn("token");
         when(jwtTokenProvider.generateRefreshToken()).thenReturn("refresh");
         when(tokenHashUtil.hashToken("refresh")).thenReturn("hashed");
         when(jwtTokenProvider.getRefreshTokenExpirationMs()).thenReturn(604800000L);

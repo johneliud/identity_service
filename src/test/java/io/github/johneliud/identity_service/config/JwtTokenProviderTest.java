@@ -27,7 +27,8 @@ class JwtTokenProviderTest {
     @Test
     @DisplayName("Generate access token returns non-null compact JWT")
     void generateAccessToken_returnsNonNullToken() {
-        String token = jwtTokenProvider.generateAccessToken("user-123", Set.of("TRAVELER"));
+        String token = jwtTokenProvider.generateAccessToken("user-123", Set.of("TRAVELER"),
+                "test@example.com", "John", "Doe");
         assertThat(token).isNotBlank();
         assertThat(token.split("\\.")).hasSize(3);
     }
@@ -38,7 +39,8 @@ class JwtTokenProviderTest {
         String userId = "user-456";
         Set<String> roles = Set.of("ADMIN", "TRAVEL_MANAGER");
 
-        String token = jwtTokenProvider.generateAccessToken(userId, roles);
+        String token = jwtTokenProvider.generateAccessToken(userId, roles,
+                "test@example.com", "John", "Doe");
         Claims claims = jwtTokenProvider.parseToken(token);
 
         assertThat(claims.getSubject()).isEqualTo(userId);
@@ -51,7 +53,8 @@ class JwtTokenProviderTest {
     @Test
     @DisplayName("Validate token returns true for valid token")
     void validateToken_validToken_returnsTrue() {
-        String token = jwtTokenProvider.generateAccessToken("user-789", Set.of("TRAVELER"));
+        String token = jwtTokenProvider.generateAccessToken("user-789", Set.of("TRAVELER"),
+                "test@example.com", "John", "Doe");
         assertThat(jwtTokenProvider.validateToken(token)).isTrue();
     }
 
@@ -64,7 +67,8 @@ class JwtTokenProviderTest {
     @Test
     @DisplayName("Validate token returns false for tampered token")
     void validateToken_tamperedToken_returnsFalse() {
-        String token = jwtTokenProvider.generateAccessToken("user-789", Set.of("TRAVELER"));
+        String token = jwtTokenProvider.generateAccessToken("user-789", Set.of("TRAVELER"),
+                "test@example.com", "John", "Doe");
         String tampered = token.substring(0, token.length() - 5) + "XXXXX";
         assertThat(jwtTokenProvider.validateToken(tampered)).isFalse();
     }
@@ -73,7 +77,8 @@ class JwtTokenProviderTest {
     @DisplayName("Get userId from token extracts subject")
     void getUserIdFromToken_extractsSubject() {
         String userId = "user-abc";
-        String token = jwtTokenProvider.generateAccessToken(userId, Set.of("TRAVELER"));
+        String token = jwtTokenProvider.generateAccessToken(userId, Set.of("TRAVELER"),
+                "test@example.com", "John", "Doe");
         assertThat(jwtTokenProvider.getUserIdFromToken(token)).isEqualTo(userId);
     }
 
@@ -81,7 +86,8 @@ class JwtTokenProviderTest {
     @DisplayName("Get roles from token extracts role claim")
     void getRolesFromToken_extractsRoles() {
         Set<String> expectedRoles = Set.of("TRAVEL_MANAGER", "TRAVELER");
-        String token = jwtTokenProvider.generateAccessToken("user-xyz", expectedRoles);
+        String token = jwtTokenProvider.generateAccessToken("user-xyz", expectedRoles,
+                "test@example.com", "John", "Doe");
         assertThat(jwtTokenProvider.getRolesFromToken(token)).isEqualTo(expectedRoles);
     }
 

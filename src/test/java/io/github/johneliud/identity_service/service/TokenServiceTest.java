@@ -91,7 +91,8 @@ class TokenServiceTest {
         when(tokenHashUtil.hashToken("old-raw-token")).thenReturn("hashed-old-token");
         when(refreshTokenRepository.findByTokenHashAndRevokedFalse("hashed-old-token"))
                 .thenReturn(Optional.of(existingToken));
-        when(jwtTokenProvider.generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any()))
+        when(jwtTokenProvider.generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any(),
+                any(), any(), any()))
                 .thenReturn("new-access-token");
         when(jwtTokenProvider.generateRefreshToken()).thenReturn("new-raw-refresh-token");
         when(tokenHashUtil.hashToken("new-raw-refresh-token")).thenReturn("new-hashed-refresh-token");
@@ -126,7 +127,8 @@ class TokenServiceTest {
                 .isInstanceOf(InvalidRefreshTokenException.class)
                 .hasMessage("Invalid or revoked refresh token");
 
-        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any());
+        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any(),
+                any(), any(), any());
     }
 
     @Test
@@ -153,7 +155,8 @@ class TokenServiceTest {
                 .isInstanceOf(InvalidRefreshTokenException.class)
                 .hasMessage("Refresh token has expired");
 
-        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any());
+        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any(),
+                any(), any(), any());
     }
 
     @Test
@@ -197,7 +200,8 @@ class TokenServiceTest {
                 .isInstanceOf(AccountDeactivatedException.class)
                 .hasMessage("Account has been deactivated");
 
-        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any());
+        verify(jwtTokenProvider, never()).generateAccessToken(anyString(), ArgumentMatchers.<Set<String>>any(),
+                any(), any(), any());
     }
 
     @Test

@@ -2,7 +2,6 @@ package io.github.johneliud.identity_service.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -74,7 +73,7 @@ class EmailVerificationIntegrationTest {
                 });
     }
 
-    private String registerAndGetVerificationToken(String email) throws Exception {
+    private String registerAndGetOtpCode(String email) throws Exception {
         RegisterRequest registerRequest = RegisterRequest.builder()
                 .email(email)
                 .password(USER_PASSWORD)
@@ -94,28 +93,29 @@ class EmailVerificationIntegrationTest {
     }
 
     @Test
-    @DisplayName("GET /auth/verify-email - Success: activates account and marks email_verified = true")
+    @DisplayName("POST /auth/verify-email - Success: activates account and marks email_verified = true")
     void verifyEmail_success_returns200() throws Exception {
         String email = "verify.success@company.com";
-        String verificationToken = registerAndGetVerificationToken(email);
+        String otpCode = registerAndGetOtpCode(email);
 
-        mockMvc.perform(get("/auth/verify-email")
+        mockMvc.perform(post("/auth/verify-email")
                         .header("X-API-Version", "1")
-                        .param("token", verificationToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"" + otpCode + "\"}"))
                 .andExpect(status().isNoContent());
 
-        // Verify user is now ACTIVE and email_verified = true
         User user = userRepository.findByEmail(email).orElseThrow();
         assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(user.getEmailVerified()).isTrue();
     }
 
     @Test
-    @DisplayName("GET /auth/verify-email - Invalid token returns 400 Bad Request")
-    void verifyEmail_invalidToken_returns400() throws Exception {
-        mockMvc.perform(get("/auth/verify-email")
+    @DisplayName("POST /auth/verify-email - Invalid code returns 400 Bad Request")
+    void verifyEmail_invalidCode_returns400() throws Exception {
+        mockMvc.perform(post("/auth/verify-email")
                         .header("X-API-Version", "1")
-                        .param("token", "invalid-token-value"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"000000\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status", is(400)))
                 .andExpect(jsonPath("$.error", is("Bad Request")))
@@ -123,48 +123,59 @@ class EmailVerificationIntegrationTest {
     }
 
     @Test
-    @DisplayName("GET /auth/verify-email - Already used token returns 400 Bad Request")
-    void verifyEmail_alreadyUsedToken_returns400() throws Exception {
+    @DisplayName("POST /auth/verify-email - Already used code returns 400 Bad Request")
+    void verifyEmail_alreadyUsedCode_returns400() throws Exception {
         String email = "verify.used@company.com";
-        String verificationToken = registerAndGetVerificationToken(email);
+        String otpCode = registerAndGetOtpCode(email);
 
-        // First verification succeeds
-        mockMvc.perform(get("/auth/verify-email")
+        mockMvc.perform(post("/auth/verify-email")
                         .header("X-API-Version", "1")
-                        .param("token", verificationToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"" + otpCode + "\"}"))
                 .andExpect(status().isNoContent());
 
-        // Second verification with same token fails
-        mockMvc.perform(get("/auth/verify-email")
+        mockMvc.perform(post("/auth/verify-email")
                         .header("X-API-Version", "1")
-                        .param("token", verificationToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"" + otpCode + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", is("Invalid or already used verification token")));
     }
 
     @Test
-    @DisplayName("GET /auth/verify-email - Missing token parameter returns 400 Bad Request")
-    void verifyEmail_missingToken_returns400() throws Exception {
-        mockMvc.perform(get("/auth/verify-email")
-                        .header("X-API-Version", "1"))
+    @DisplayName("POST /auth/verify-email - Missing code returns 400 Bad Request")
+    void verifyEmail_missingCode_returns400() throws Exception {
+        mockMvc.perform(post("/auth/verify-email")
+                        .header("X-API-Version", "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status", is(400)))
-                .andExpect(jsonPath("$.message", is("Missing required parameter: 'token'")));
+                .andExpect(jsonPath("$.status", is(400)));
     }
 
     @Test
-    @DisplayName("GET /auth/verify-email - Verified account can log in")
+    @DisplayName("POST /auth/verify-email - Non-numeric code returns 400 Bad Request")
+    void verifyEmail_nonNumericCode_returns400() throws Exception {
+        mockMvc.perform(post("/auth/verify-email")
+                        .header("X-API-Version", "1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"abcdef\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status", is(400)));
+    }
+
+    @Test
+    @DisplayName("POST /auth/verify-email - Verified account can log in")
     void verifyEmail_thenLogin_succeeds() throws Exception {
         String email = "verify.login@company.com";
-        String verificationToken = registerAndGetVerificationToken(email);
+        String otpCode = registerAndGetOtpCode(email);
 
-        // Verify email
-        mockMvc.perform(get("/auth/verify-email")
+        mockMvc.perform(post("/auth/verify-email")
                         .header("X-API-Version", "1")
-                        .param("token", verificationToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"" + otpCode + "\"}"))
                 .andExpect(status().isNoContent());
 
-        // Now login should succeed
         LoginRequest loginRequest = LoginRequest.builder()
                 .email(email)
                 .password(USER_PASSWORD)
@@ -179,12 +190,11 @@ class EmailVerificationIntegrationTest {
     }
 
     @Test
-    @DisplayName("GET /auth/verify-email - Unverified account cannot log in")
+    @DisplayName("POST /auth/verify-email - Unverified account cannot log in")
     void verifyEmail_unverifiedAccount_cannotLogin() throws Exception {
         String email = "verify.nologin@company.com";
-        registerAndGetVerificationToken(email);
+        registerAndGetOtpCode(email);
 
-        // Login should fail without verification
         LoginRequest loginRequest = LoginRequest.builder()
                 .email(email)
                 .password(USER_PASSWORD)

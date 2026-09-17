@@ -78,19 +78,20 @@ class EmailVerificationServiceTest {
     }
 
     @Test
-    @DisplayName("generateToken creates verification token and returns raw token")
+    @DisplayName("generateToken creates verification token and returns 6-digit OTP")
     void generateToken_success() {
         User user = createPendingUser();
 
         when(tokenHashUtil.hashToken(anyString())).thenReturn("hashed-token");
         when(verificationTokenRepository.save(any(VerificationToken.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        String rawToken = emailVerificationService.generateToken(user);
+        String otpCode = emailVerificationService.generateToken(user);
 
-        assertThat(rawToken).isNotNull();
-        assertThat(rawToken).hasSize(32);
+        assertThat(otpCode).isNotNull();
+        assertThat(otpCode).hasSize(6);
+        assertThat(otpCode).matches("\\d{6}");
         verify(verificationTokenRepository).save(any(VerificationToken.class));
-        verify(emailService).sendVerificationEmail("user@example.com", rawToken);
+        verify(emailService).sendVerificationEmail("user@example.com", otpCode);
     }
 
     @Test
