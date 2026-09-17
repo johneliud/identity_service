@@ -47,4 +47,26 @@ public class SmtpEmailService implements EmailService {
             throw new RuntimeException("Failed to send verification email", e);
         }
     }
+
+    @Override
+    public void sendPasswordResetEmail(String to, String otpCode) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromAddress);
+        message.setTo(to);
+        message.setSubject("Reset your password");
+        message.setText(
+                "You requested a password reset.\n\n"
+                + "Your reset code is:\n\n"
+                + otpCode + "\n\n"
+                + "This code will expire in 1 hour.\n\n"
+                + "If you did not request a password reset, you can safely ignore this email.");
+
+        try {
+            mailSender.send(message);
+            log.info("Password reset email sent to '{}'", to);
+        } catch (Exception e) {
+            log.error("Failed to send password reset email to '{}': {}", to, e.getMessage());
+            throw new RuntimeException("Failed to send password reset email", e);
+        }
+    }
 }

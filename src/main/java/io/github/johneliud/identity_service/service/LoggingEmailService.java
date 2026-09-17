@@ -15,4 +15,10 @@ public class LoggingEmailService implements EmailService {
         log.warn("EMAIL SERVICE DISABLED. Verification email NOT sent to '{}'. Token: '{}'",
                 to, verificationToken);
     }
+
+    @Override
+    public void sendPasswordResetEmail(String to, String otpCode) {
+        log.warn("EMAIL SERVICE DISABLED. Password reset email NOT sent to '{}'. Code: '{}'",
+                to, otpCode);
+    }
 }

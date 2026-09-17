@@ -26,26 +26,29 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class PasswordService {
 
+    private static final long RESET_TOKEN_EXPIRATION_MS = 3600000;
+    private static final java.util.Random RANDOM = new java.util.Random();
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final OutboxEventPublisher outboxEventPublisher;
-    private final JwtTokenProvider jwtTokenProvider;
     private final ResetTokenRepository resetTokenRepository;
     private final TokenHashUtil tokenHashUtil;
+    private final EmailService emailService;
 
     public PasswordService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             OutboxEventPublisher outboxEventPublisher,
-            JwtTokenProvider jwtTokenProvider,
             ResetTokenRepository resetTokenRepository,
-            TokenHashUtil tokenHashUtil) {
+            TokenHashUtil tokenHashUtil,
+            EmailService emailService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.outboxEventPublisher = outboxEventPublisher;
-        this.jwtTokenProvider = jwtTokenProvider;
         this.resetTokenRepository = resetTokenRepository;
         this.tokenHashUtil = tokenHashUtil;
+        this.emailService = emailService;
     }
 
     @Transactional
@@ -80,21 +83,17 @@ public class PasswordService {
         String normalizedEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
 
         userRepository.findByEmail(normalizedEmail).ifPresent(user -> {
-            String rawToken = jwtTokenProvider.generateRefreshToken();
-            String hashedToken = tokenHashUtil.hashToken(rawToken);
+            String otpCode = String.format("%06d", RANDOM.nextInt(999999));
+            String hashedToken = tokenHashUtil.hashToken(otpCode);
 
             ResetToken resetToken = ResetToken.builder()
                     .tokenHash(hashedToken)
                     .user(user)
-                    .expiresAt(Instant.now().plusMillis(
-                            jwtTokenProvider.getRefreshTokenExpirationMs() > 3600000
-                                    ? 3600000
-                                    : jwtTokenProvider.getRefreshTokenExpirationMs()))
+                    .expiresAt(Instant.now().plusMillis(RESET_TOKEN_EXPIRATION_MS))
                     .build();
             resetTokenRepository.save(resetToken);
 
-            log.info("Password reset token generated for user '{}'. Token: '{}' would be sent via email",
-                    user.getEmail(), rawToken);
+            emailService.sendPasswordResetEmail(user.getEmail(), otpCode);
         });
 
         log.info("Password reset requested for email '{}'", normalizedEmail);
@@ -102,7 +101,7 @@ public class PasswordService {
 
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
-        String hashedToken = tokenHashUtil.hashToken(request.getToken());
+        String hashedToken = tokenHashUtil.hashToken(request.getCode());
 
         ResetToken resetToken = resetTokenRepository.findByTokenHashAndUsedFalse(hashedToken)
                 .orElseThrow(() -> {
