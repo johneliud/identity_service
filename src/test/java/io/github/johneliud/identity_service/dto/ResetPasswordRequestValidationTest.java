@@ -31,7 +31,7 @@ class ResetPasswordRequestValidationTest {
     @DisplayName("Valid reset password request passes validation")
     void validRequest_passesValidation() {
         ResetPasswordRequest request = ResetPasswordRequest.builder()
-                .token("valid-token")
+                .code("123456")
                 .newPassword(NEW_PASSWORD)
                 .build();
         Set<ConstraintViolation<ResetPasswordRequest>> violations = validator.validate(request);
@@ -39,22 +39,58 @@ class ResetPasswordRequestValidationTest {
     }
 
     @Test
-    @DisplayName("Null token fails validation")
-    void nullToken_failsValidation() {
+    @DisplayName("Null code fails validation")
+    void nullCode_failsValidation() {
         ResetPasswordRequest request = ResetPasswordRequest.builder()
-                .token(null)
+                .code(null)
                 .newPassword(NEW_PASSWORD)
                 .build();
         Set<ConstraintViolation<ResetPasswordRequest>> violations = validator.validate(request);
         assertThat(violations).isNotEmpty();
-        assertThat(violations).anyMatch(v -> v.getPropertyPath().toString().equals("token"));
+        assertThat(violations).anyMatch(v -> v.getPropertyPath().toString().equals("code"));
+    }
+
+    @Test
+    @DisplayName("Non-numeric code fails validation")
+    void nonNumericCode_failsValidation() {
+        ResetPasswordRequest request = ResetPasswordRequest.builder()
+                .code("abcdef")
+                .newPassword(NEW_PASSWORD)
+                .build();
+        Set<ConstraintViolation<ResetPasswordRequest>> violations = validator.validate(request);
+        assertThat(violations).isNotEmpty();
+        assertThat(violations).anyMatch(v -> v.getPropertyPath().toString().equals("code"));
+    }
+
+    @Test
+    @DisplayName("5-digit code fails validation")
+    void shortCode_failsValidation() {
+        ResetPasswordRequest request = ResetPasswordRequest.builder()
+                .code("12345")
+                .newPassword(NEW_PASSWORD)
+                .build();
+        Set<ConstraintViolation<ResetPasswordRequest>> violations = validator.validate(request);
+        assertThat(violations).isNotEmpty();
+        assertThat(violations).anyMatch(v -> v.getPropertyPath().toString().equals("code"));
+    }
+
+    @Test
+    @DisplayName("7-digit code fails validation")
+    void longCode_failsValidation() {
+        ResetPasswordRequest request = ResetPasswordRequest.builder()
+                .code("1234567")
+                .newPassword(NEW_PASSWORD)
+                .build();
+        Set<ConstraintViolation<ResetPasswordRequest>> violations = validator.validate(request);
+        assertThat(violations).isNotEmpty();
+        assertThat(violations).anyMatch(v -> v.getPropertyPath().toString().equals("code"));
     }
 
     @Test
     @DisplayName("Null new password fails validation")
     void nullNewPassword_failsValidation() {
         ResetPasswordRequest request = ResetPasswordRequest.builder()
-                .token("valid-token")
+                .code("123456")
                 .newPassword(null)
                 .build();
         Set<ConstraintViolation<ResetPasswordRequest>> violations = validator.validate(request);
@@ -73,7 +109,7 @@ class ResetPasswordRequestValidationTest {
     @DisplayName("Weak new passwords fail validation")
     void weakNewPassword_failsValidation(String password) {
         ResetPasswordRequest request = ResetPasswordRequest.builder()
-                .token("valid-token")
+                .code("123456")
                 .newPassword(password)
                 .build();
         Set<ConstraintViolation<ResetPasswordRequest>> violations = validator.validate(request);
@@ -85,7 +121,7 @@ class ResetPasswordRequestValidationTest {
     @DisplayName("ResetPasswordRequest.toString() does not expose plaintext password")
     void toString_excludesPlaintextPassword() {
         ResetPasswordRequest request = ResetPasswordRequest.builder()
-                .token("valid-token")
+                .code("123456")
                 .newPassword(NEW_PASSWORD)
                 .build();
         String stringRepresentation = request.toString();

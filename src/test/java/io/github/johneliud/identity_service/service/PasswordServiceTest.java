@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,7 +22,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import io.github.johneliud.identity_service.config.JwtTokenProvider;
 import io.github.johneliud.identity_service.dto.ChangePasswordRequest;
 import io.github.johneliud.identity_service.dto.ForgotPasswordRequest;
 import io.github.johneliud.identity_service.dto.ResetPasswordRequest;
@@ -49,13 +49,13 @@ class PasswordServiceTest {
     private OutboxEventPublisher outboxEventPublisher;
 
     @Mock
-    private JwtTokenProvider jwtTokenProvider;
-
-    @Mock
     private ResetTokenRepository resetTokenRepository;
 
     @Mock
     private TokenHashUtil tokenHashUtil;
+
+    @Mock
+    private EmailService emailService;
 
     private PasswordService passwordService;
     private Role travelerRole;
@@ -66,7 +66,7 @@ class PasswordServiceTest {
     void setUp() {
         passwordService = new PasswordService(
                 userRepository, passwordEncoder, outboxEventPublisher,
-                jwtTokenProvider, resetTokenRepository, tokenHashUtil
+                resetTokenRepository, tokenHashUtil, emailService
         );
 
         travelerRole = Role.builder()
@@ -175,14 +175,12 @@ class PasswordServiceTest {
     }
 
     @Test
-    @DisplayName("Forgot password generates reset token for existing user")
+    @DisplayName("Forgot password generates OTP code and sends email for existing user")
     void forgotPassword_success() {
         User user = createActiveUser();
 
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
-        when(jwtTokenProvider.generateRefreshToken()).thenReturn("raw-reset-token");
-        when(tokenHashUtil.hashToken("raw-reset-token")).thenReturn("hashed-reset-token");
-        when(jwtTokenProvider.getRefreshTokenExpirationMs()).thenReturn(604800000L);
+        when(tokenHashUtil.hashToken(anyString())).thenReturn("hashed-otp");
         when(resetTokenRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ForgotPasswordRequest request = ForgotPasswordRequest.builder()
@@ -192,6 +190,7 @@ class PasswordServiceTest {
         passwordService.forgotPassword(request);
 
         verify(resetTokenRepository).save(any());
+        verify(emailService).sendPasswordResetEmail(eq("user@example.com"), anyString());
     }
 
     @Test
@@ -206,29 +205,30 @@ class PasswordServiceTest {
         passwordService.forgotPassword(request);
 
         verify(resetTokenRepository, never()).save(any());
+        verify(emailService, never()).sendPasswordResetEmail(anyString(), anyString());
     }
 
     @Test
-    @DisplayName("Reset password succeeds with valid token")
+    @DisplayName("Reset password succeeds with valid code")
     void resetPassword_success() {
         User user = createActiveUser();
         ResetToken resetToken = ResetToken.builder()
                 .id(UUID.randomUUID())
-                .tokenHash("hashed-reset-token")
+                .tokenHash("hashed-otp")
                 .user(user)
                 .expiresAt(Instant.now().plusSeconds(3600))
                 .used(false)
                 .build();
 
-        when(tokenHashUtil.hashToken("raw-reset-token")).thenReturn("hashed-reset-token");
-        when(resetTokenRepository.findByTokenHashAndUsedFalse("hashed-reset-token"))
+        when(tokenHashUtil.hashToken("123456")).thenReturn("hashed-otp");
+        when(resetTokenRepository.findByTokenHashAndUsedFalse("hashed-otp"))
                 .thenReturn(Optional.of(resetToken));
         when(passwordEncoder.encode(NEW_PASSWORD)).thenReturn("$2a$12$newHashedPassword");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(resetTokenRepository.save(any(ResetToken.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ResetPasswordRequest request = ResetPasswordRequest.builder()
-                .token("raw-reset-token")
+                .code("123456")
                 .newPassword(NEW_PASSWORD)
                 .build();
 
@@ -240,14 +240,14 @@ class PasswordServiceTest {
     }
 
     @Test
-    @DisplayName("Reset password fails with invalid token")
-    void resetPassword_invalidToken_throwsInvalidResetToken() {
-        when(tokenHashUtil.hashToken("invalid-token")).thenReturn("hashed-invalid");
+    @DisplayName("Reset password fails with invalid code")
+    void resetPassword_invalidCode_throwsInvalidResetToken() {
+        when(tokenHashUtil.hashToken("000000")).thenReturn("hashed-invalid");
         when(resetTokenRepository.findByTokenHashAndUsedFalse("hashed-invalid"))
                 .thenReturn(Optional.empty());
 
         ResetPasswordRequest request = ResetPasswordRequest.builder()
-                .token("invalid-token")
+                .code("000000")
                 .newPassword(NEW_PASSWORD)
                 .build();
 
@@ -259,23 +259,23 @@ class PasswordServiceTest {
     }
 
     @Test
-    @DisplayName("Reset password fails with expired token")
-    void resetPassword_expiredToken_throwsInvalidResetToken() {
+    @DisplayName("Reset password fails with expired code")
+    void resetPassword_expiredCode_throwsInvalidResetToken() {
         User user = createActiveUser();
         ResetToken expiredToken = ResetToken.builder()
                 .id(UUID.randomUUID())
-                .tokenHash("hashed-expired-token")
+                .tokenHash("hashed-expired")
                 .user(user)
                 .expiresAt(Instant.now().minusSeconds(3600))
                 .used(false)
                 .build();
 
-        when(tokenHashUtil.hashToken("expired-token")).thenReturn("hashed-expired-token");
-        when(resetTokenRepository.findByTokenHashAndUsedFalse("hashed-expired-token"))
+        when(tokenHashUtil.hashToken("111111")).thenReturn("hashed-expired");
+        when(resetTokenRepository.findByTokenHashAndUsedFalse("hashed-expired"))
                 .thenReturn(Optional.of(expiredToken));
 
         ResetPasswordRequest request = ResetPasswordRequest.builder()
-                .token("expired-token")
+                .code("111111")
                 .newPassword(NEW_PASSWORD)
                 .build();
 
@@ -297,12 +297,12 @@ class PasswordServiceTest {
                 .used(false)
                 .build();
 
-        when(tokenHashUtil.hashToken("raw-token")).thenReturn("hashed-token");
+        when(tokenHashUtil.hashToken("222222")).thenReturn("hashed-token");
         when(resetTokenRepository.findByTokenHashAndUsedFalse("hashed-token"))
                 .thenReturn(Optional.of(resetToken));
 
         ResetPasswordRequest request = ResetPasswordRequest.builder()
-                .token("raw-token")
+                .code("222222")
                 .newPassword(NEW_PASSWORD)
                 .build();
 
