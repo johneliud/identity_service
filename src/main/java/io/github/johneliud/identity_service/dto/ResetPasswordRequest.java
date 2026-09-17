@@ -16,8 +16,9 @@ import lombok.ToString;
 @Builder
 public class ResetPasswordRequest {
 
-    @NotBlank(message = "Reset token is required")
-    private String token;
+    @NotBlank(message = "Verification code is required")
+    @Pattern(regexp = "\\d{6}", message = "Verification code must be 6 digits")
+    private String code;
 
     @NotBlank(message = "New password is required")
     @Pattern(
