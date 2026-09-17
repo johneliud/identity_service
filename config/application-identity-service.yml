@@ -63,7 +63,7 @@ spring:
               uri: ${IDENTITY_SERVICE_URL}
               predicates:
                 - Path=/auth/verify-email
-                - Method=GET
+                - Method=POST
               filters:
                 - name: RateLimitGatewayFilter
 
