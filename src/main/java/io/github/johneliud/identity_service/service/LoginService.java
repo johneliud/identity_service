@@ -75,7 +75,9 @@ public class LoginService {
                 .map(Role::getName)
                 .collect(Collectors.toSet());
 
-        String accessToken = jwtTokenProvider.generateAccessToken(user.getId().toString(), roleNames);
+        String accessToken = jwtTokenProvider.generateAccessToken(
+                user.getId().toString(), roleNames,
+                user.getEmail(), user.getFirstName(), user.getLastName());
 
         String rawRefreshToken = jwtTokenProvider.generateRefreshToken();
         String hashedRefreshToken = tokenHashUtil.hashToken(rawRefreshToken);

@@ -43,15 +43,8 @@ public class EmailVerificationService {
 
     @Transactional
     public String generateToken(User user) {
-        String seed = user.getId().toString() + Instant.now();
-        String rawToken = java.util.Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(seed.getBytes(java.nio.charset.StandardCharsets.UTF_8))
-                .replaceAll("[^a-zA-Z0-9]", "");
-        if (rawToken.length() < 32) {
-            rawToken = rawToken + java.util.UUID.randomUUID().toString().replaceAll("[^a-zA-Z0-9]", "");
-        }
-        rawToken = rawToken.substring(0, 32);
-        String hashedToken = tokenHashUtil.hashToken(rawToken);
+        String otpCode = String.format("%06d", new java.util.Random().nextInt(999999));
+        String hashedToken = tokenHashUtil.hashToken(otpCode);
 
         VerificationToken verificationToken = VerificationToken.builder()
                 .tokenHash(hashedToken)
@@ -60,9 +53,9 @@ public class EmailVerificationService {
                 .build();
         verificationTokenRepository.save(verificationToken);
 
-        emailService.sendVerificationEmail(user.getEmail(), rawToken);
+        emailService.sendVerificationEmail(user.getEmail(), otpCode);
 
-        return rawToken;
+        return otpCode;
     }
 
     @Transactional

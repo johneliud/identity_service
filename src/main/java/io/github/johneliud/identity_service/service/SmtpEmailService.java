@@ -28,17 +28,15 @@ public class SmtpEmailService implements EmailService {
 
     @Override
     public void sendVerificationEmail(String to, String verificationToken) {
-        String verifyUrl = frontendBaseUrl + "/verify-email?token=" + verificationToken;
-
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromAddress);
         message.setTo(to);
         message.setSubject("Verify your email address");
         message.setText(
                 "Welcome to Safari Adventures!\n\n"
-                + "Please verify your email address by clicking the link below:\n\n"
-                + verifyUrl + "\n\n"
-                + "This link will expire in 1 hour.\n\n"
+                + "Your verification code is:\n\n"
+                + verificationToken + "\n\n"
+                + "This code will expire in 1 hour.\n\n"
                 + "If you did not create an account, you can safely ignore this email.");
 
         try {
