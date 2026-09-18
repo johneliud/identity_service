@@ -79,8 +79,6 @@ public class TokenService {
                 .build();
         refreshTokenRepository.save(newRefreshTokenEntity);
 
-        log.info("Successful token refresh for user '{}'", user.getEmail());
-
         return RefreshTokenResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRawRefreshToken)
